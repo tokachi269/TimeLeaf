@@ -1,10 +1,12 @@
 <template>
   <div class="card">
-    <div class="channel-name">{{ post.channelName }}</div> <!-- チャンネル名を追加 -->
+    <a :href="localPost.channelUrl" class="channel-name" target="_blank" rel="noopener noreferrer"> {{
+      localPost.channelName }} </a>
     <div class="header">
-      <img :src="post.userImage" alt="User Image" class="user-image" />
+      <img :src="userImage" alt="User Image" class="user-image" />
       <div class="user-info">
-        <span class="username">{{ post.username }}</span>
+        <span class="username">{{ userName }}</span>
+        <span class="username-en">{{ userNameEn }}</span>
       </div>
     </div>
     <div class="content-wrapper">
@@ -12,63 +14,345 @@
       <div class="content-area">
         <div class="content" v-html="formattedContent"></div>
         <div v-if="thumbnailHtml" class="url-preview-container" v-html="thumbnailHtml"></div> <!-- サムネイル表示 -->
+        <div v-if="hasImage">
+          <div ref="imageGallery" class="image-gallery" :class="[setGalleryClass, { 'expanded': isExpanded }]">
+            <div v-for="(file, index) in visibleImages" :key="index" class="image-item">
+              <img :src="file.url" :alt="file.name" class="image" @click="openModal(index)" crossorigin="anonymous" />
+            </div>
+            <div v-if="isModalOpen" class="modal" @click="closeModal">
+              <img :src="modalImageUrl" alt="High Quality Image" class="modal-image" crossorigin="anonymous" />
+            </div>
+          </div>
+          <button v-if="shouldShowExpandButton" class="expand-button" @click="toggleExpanded">
+            <span class="expand-button-context">もっと見る</span>
+          </button>
+        </div>
+        <div class="reaction-list">
+          <div v-for="reaction in reactions" :key="reaction.name" class="reaction-item"
+            @mouseenter="showUserList(reaction.name, $event)" @mouseleave="hideUserList">
+            <span v-html="getEmojiForReaction(reaction.name)"></span>
+            <span class="reaction-count">{{ reaction.count }}</span>
+          </div>
+
+          <!-- ユーザーポップアップ -->
+          <div v-if="isUserListVisible" class="user-popup"
+            :class="{ 'is-scrolling': isScrolling, 'is-tapped': isTapped }"
+            :style="{ top: popupPosition.top + 'px', left: popupPosition.left + 'px' }">
+            <!-- リアクション名を表示 -->
+            <div class="reaction-name">:{{ hoveredReactionName }}:</div>
+            <hr class="separator-line" />
+            <ul>
+              <li v-for="user in hoveredUsers" :key="user">{{ user }}</li>
+            </ul>
+          </div>
+        </div>
         <span class="date">{{ post.date }}</span>
       </div>
     </div>
   </div>
-  <div class="reaction-container">
-    <img v-for="reaction in post.reactions" :key="reaction.name" :src="getEmojiUrl(reaction.name)" :alt="reaction.name"
-      class="reaction-image" />
-  </div>
 </template>
 
 <script>
+import { toRaw } from 'vue';
+import { nextTick } from 'vue';
+import { API_BASE_URL } from '@/config.js';
 export default {
   props: {
-    post: Object
+    post: {
+      type: Object,
+      required: true
+    },
+    accessToken: {
+      type: String,
+      required: true // 親からトークンを受け取る
+    },
+    emojiMap: {
+      type: Object,
+      required: true // 親から絵文字Mapを受け取る
+    }
   },
   data() {
     return {
-      thumbnailHtml: '',
+      localPost: toRaw(this.post), // propsの値をdataにコピーして保持
+      replies: [],
+      images: [],
+      reactions: [],
+      userName: "",
+      userNameEn: "",
+      userImage: "",
+      isModalOpen: false, // モーダルが開いているか
+      modalImageUrl: "", // モーダルに表示する画像のURL
+      isExpanded: false,
+      showExpandButton: false,
+      maxHeight: 500, // imageGalleryの初期最大高
+      hasImage: false,
+      isUserListVisible: false,
+      isScrolling: false,
+      isTouchDevice: 'ontouchstart' in window, // タッチデバイスの判定
+      isTapped: false, // タップ状態を管理
+      hoveredUsers: [],
+      hoveredReactionName: "",
+      popupPosition: { top: 0, left: 0 },
     };
+  },
+  inject: {
+    unicodeEmojis: { default: [] },
+  },
+  async mounted() {
+    this.profile = this.fetchUserProfile();
+
+    // 画像ファイルの URL を取得
+    if (this.post.files) {
+      for (const file of this.post.files) {
+        await this.fetchImageSrc(file, true);
+      }
+      if (this.post.files.length !== 0) {
+        this.hasImage = true;
+        await nextTick(); // DOM が更新されるのを待つ
+        const observer = new IntersectionObserver((entries) => {
+          if (entries[0].isIntersecting) {
+            this.checkHeight();
+          }
+        });
+
+        // imageGallery が存在する場合のみ observe
+        if (this.$refs.imageGallery) {
+          observer.observe(this.$refs.imageGallery);
+        }
+
+      }
+    }
+
+    window.addEventListener("resize", this.checkHeight); // imageGalleryのサイズ変更(画像が呼び込まれた)検知
+    window.addEventListener("scroll", this.onScroll); // スクロール検知
+    // タップイベントリスナー (スマホ)
+    if (this.isTouchDevice) {
+      window.addEventListener("touchstart", this.onTap);
+    }
+    this.fetchReplies();
+  },
+  beforeUnmount() {
+    window.removeEventListener("resize", this.checkHeight);
+    window.removeEventListener("scroll", this.onScroll);
+
+    // タップイベントリスナー (スマホ)
+    if (this.isTouchDevice) {
+      window.removeEventListener("touchstart", this.onTap);
+    }
   },
   computed: {
     formattedContent() {
       // テキスト内のURLを見つけ、サムネイルとタイトルを取得
       const urlRegex = /<(https?:\/\/[^\s]+)>/g;  // URL検出用の正規表現
+      let formatted = this.localPost.content.replace(/\n/g, '<br>');
 
-      let formatted = this.post.content.replace(/\n/g, '<br>');
-
-      formatted = formatted.replace(urlRegex, (match, url) => {
-        return `<a href="http${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+      formatted = formatted.replace(urlRegex, (match, urls) => {
+        let url = urls.split("|")[0];
+        return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
       });
+
       return formatted;
-    }
+    },
+
+    visibleImages() {
+      // 表示する画像の数を決定
+      return this.isExpanded ? this.images : this.images.slice(0, 4);
+    },
+    setGalleryClass() {
+      // 画像が1枚の場合は `single-image` クラス、複数枚の場合は `multi-image` クラスを返す
+      return (this.post.files && this.post.files.length == 1) ? 'single-image' : 'multi-image';
+    },
+    shouldShowExpandButton() {
+      // 画像が複数枚かつギャラリーの高さが maxHeight を超えている場合のみ、展開ボタンを表示
+      const isMultipleImages = this.post.files && this.post.files.length >= 3;
+      if (isMultipleImages) {
+        this.$refs.imageGallery?.offsetHeight
+        // console.log(".imageGallery?.offsetHeight" + this.$refs.imageGallery?.offsetHeight);
+        // console.log("this.isExpanded" + this.isExpanded);
+        // console.log("this.showExpandButton" + this.showExpandButton);
+        // console.log("isMultipleImages" + isMultipleImages);
+      }
+
+      return !this.isExpanded && this.showExpandButton && isMultipleImages;
+    },
   },
   methods: {
-    getEmojiUrl(emojiName) {
-      // 絵文字名をURL形式に変換
-      return `https://slack.com/img/emoji/${emojiName}.png`;
-    },
-    extractThumbnail() {
-      if (this.post.attachments && this.post.attachments.length > 0) {
-        const attachment = this.post.attachments[0]; // 最初の添付情報を取得
-        if (attachment.image_url && attachment.title && attachment.title_link) {
-          // サムネイル用HTMLを作成
-          this.thumbnailHtml = `
-            <div class="url-preview">
-              <img src="${attachment.image_url}" alt="Thumbnail" class="url-thumbnail" />
-              <div class="url-title">
-                <a href="${attachment.title_link}" target="_blank">${attachment.title}</a>
-              </div>
-            </div>
-          `;
-        }
+    async fetchUserProfile() {
+      try {
+        // Flaskサーバーからprofileを取得
+        const profile = await fetch(`${API_BASE_URL}/api/v1/slack/users/profile?user=${this.localPost.userId}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${toRaw(this.accessToken)}`
+          }
+        }).then(response => {
+          if (!response.ok) {
+            throw new Error('Network response was not ok');
+          }
+          return response.json();
+        }).catch(error => {
+          console.error('Error fetching data:', error);
+        });
+        // console.log("profile:", profile);
+        this.userName = profile.display_name;
+        this.userNameEn = profile.real_name;
+        this.userImage = profile.image_192;
+
+      } catch (error) {
+        console.error('Error fetching user profile:', error);
       }
-    }
-  },
-  mounted() {
-    this.extractThumbnail(); // コンポーネントがマウントされたときにサムネイル情報を抽出
+    },
+    async fetchImageSrc(file, init) {
+      try {
+        // Flaskサーバーから画像を取得
+        // Flaskを経由するのはAuthorizationヘッダーが必要なため。imgタグでヘッダー設定できない
+        // 一度画像を取得して、imgタグではキャッシュを参照している
+        const url = `${API_BASE_URL}/api/v1/slack/image?url=${encodeURIComponent(init ? file.thumb_720 : file.url_private)}&type=${encodeURIComponent(file.mimetype)}`;
+        await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${toRaw(this.accessToken)}`
+          }
+        }).then(response => {
+          if (!response.ok) {
+            throw new Error('Network response was not ok');
+          }
+          if (init) {
+            file.url = url;
+            this.images.push(file);
+          } else {
+            this.modalImageUrl = url;
+          }
+        }).catch(error => {
+          console.error('Error fetching data:', error);
+        });
+      } catch (error) {
+        console.error("Error fetching image:", error);
+        return file.thumb_480; // エラーが発生した場合、元のURLを表示
+      }
+    },
+    toggleExpanded() {
+      this.isExpanded = !this.isExpanded;
+    },
+    expandGallery() {
+      this.isExpanded = true;
+    },
+    collapseGallery() {
+      this.isExpanded = false;
+    },
+    async openModal(index) {
+      const file = this.images[index];
+      await this.fetchImageSrc(file, false);
+      this.isModalOpen = true;
+    },
+    closeModal() {
+      this.isModalOpen = false;
+    },
+    onScroll() {
+      // ユーザーポップアップが表示されている場合は閉じる
+      this.isScrolling = true;
+      if (this.isUserListVisible) {
+        this.isUserListVisible = false;
+      }
+      // 100ms 後にスクロールが止まったと判断
+      clearTimeout(this.scrollTimeout);
+      this.scrollTimeout = setTimeout(() => {
+        this.isScrolling = false;
+      }, 100);
+    },
+    onTap() {
+      // タップ時に拡大を適用
+      this.isTapped = true;
+    },
+    async checkHeight() {
+      // DOM 更新後に高さを取得する
+      await nextTick();
+      const galleryHeight = this.$refs.imageGallery?.offsetHeight;
+      if (galleryHeight && this.post?.files?.length) {
+        console.log(this.post.files.length + " galleryHeight:" + galleryHeight);
+      }
+      this.showExpandButton = galleryHeight >= this.maxHeight;
+    },
+    async fetchReplies() {
+      try {
+        // Flaskサーバーから返信メッセージを取得、リアクションもここで取得
+        const response = await fetch(`${API_BASE_URL}/api/v1/slack/messages/replies?channel=${this.localPost.channelId}&ts=${this.localPost.ts}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${toRaw(this.accessToken)}`
+          }
+        }).then(response => {
+          if (!response.ok) {
+            throw new Error('Network response was not ok');
+          }
+          return response.json();
+        }).catch(error => {
+          console.error('Error fetching data:', error);
+        });
+        this.replies = await toRaw(response);
+
+        const message = this.replies.find((msg) => msg.ts === this.localPost.ts);
+        this.reactions = message?.reactions ?? [];
+      } catch (error) {
+        console.error('Error fetching user profile:', error);
+      }
+    },
+    getEmojiForReaction(reactionName) {
+      if (!reactionName) return
+
+      const emojiUrl = this.emojiMap[reactionName];
+      if (emojiUrl) {
+        // カスタム絵文字の場合
+        return `<img src="${emojiUrl}" alt="${reactionName}" class="emoji-image">`;
+      }
+
+      // Unicode 絵文字の場合
+      const unicodeEmoji = reactionName.split('::')
+        .map(part => {
+          const emoji = this.unicodeEmojis.find(emoji => emoji.short_name === part);
+          // 絵文字が見つかった場合、HTMLエンティティに変換
+          return emoji && emoji.unified ? this.convertToHtmlEntity(emoji.unified) : part;
+        })
+        .join(''); // 結合して返す
+
+      if (unicodeEmoji) {
+        return unicodeEmoji;
+      }
+      // 絵文字が見つからなかった場合、テキストとして表示
+      return reactionName;
+    },
+    convertToHtmlEntity(unicodeString) {
+      // ハイフンで分割して、各部分に &#x と ; を追加
+      if (!unicodeString) return ""
+      return unicodeString
+        .split('-')
+        .map(code => `&#x${code};`)
+        .join('');
+    },
+    // ホバー時にユーザーリストを表示
+    showUserList(reactionName, event) {
+      const reaction = this.reactions.find(r => r.name === reactionName);
+      this.hoveredReactionName = reaction.name;
+      if (reaction && reaction.users) {
+        this.hoveredUsers = reaction.users.map(user => user.name);
+        this.isUserListVisible = true;
+
+        // ホバーした要素の位置を取得
+        const targetElement = event.currentTarget;
+        const rect = targetElement.getBoundingClientRect();
+
+        // ポップアップの位置を設定（要素の直下に表示）
+        this.popupPosition = {
+          top: rect.bottom + 10, // スクロール量は考慮しない
+          left: rect.left - 10,
+        };
+      }
+    },
+    // ホバーが外れたらユーザーリストを非表示にする
+    hideUserList() {
+      this.isUserListVisible = false;
+      this.hoveredUsers = [];
+    },
   }
 }
 </script>
@@ -79,7 +363,6 @@ export default {
   --user-image-size: 50px;
   /* ユーザー画像のサイズ */
   --padding: 16px;
-  /* パディング */
   --border-radius: 8px;
   /* ボーダーの角の丸み */
   --box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
@@ -89,32 +372,37 @@ export default {
 .card {
   border: 1px solid #ddd;
   border-radius: 8px;
-  padding: 16px;
+  padding: 12px;
   margin-bottom: 16px;
   box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
   font-size: 16px;
-  /* カード全体の基本フォントサイズ */
 }
 
 ::v-deep .emoji-image {
   /* v-deepをつけないとv-htmlで挿入したhtmlタグにcssが適用されない */
+  display: inline-block;
   vertical-align: middle;
-  /* テキストと画像の縦位置を合わせる */
-  width: 1.1em;
-  height: 1.1em;
+  width: 1.5em;
+  height: 1.5em;
   object-fit: contain;
-  /* 画像の歪みを防ぐ */
+  overflow-clip-margin: content-box;
+  overflow: clip;
 }
 
 ::v-deep .emoji-image:hover {
-  transform: scale(1.5);
-  /* 画像を1.5倍に拡大 */
+  transform: scale(2);
+  /* 画像を2倍に拡大 */
   animation: enlarge 0.1s ease forwards;
   /* enlargeアニメーションを適用 */
   z-index: 10;
   /* 他の要素よりも前に表示 */
+}
+
+::v-deep .reaction-item .emoji-image:hover {
+  transform: scale(1) !important;
+  /* 画像を1倍に拡大(reaction-item内のemojiは拡大しない) */
 }
 
 /* アニメーションの定義 */
@@ -134,9 +422,14 @@ export default {
   font-weight: bold;
   margin-bottom: 8px;
   /* ユーザー情報との間にマージンを追加 */
+  color: inherit;
+  /* テキストの色を継承 */
+  text-decoration: none;
+  text-align: center;
 }
 
 .header {
+  height: 16px;
   display: flex;
   align-items: flex-start;
   /* 画像とユーザー情報を上に揃える */
@@ -147,16 +440,28 @@ export default {
   height: 40px;
   border-radius: 50%;
   margin-right: 10px;
+  display: flex;
 }
 
 .user-info {
   flex-grow: 1;
-  /* ユーザー情報が残りのスペースを占める */
+  display: flex;
+  text-align: left;
+  align-items: center;
+  /* 垂直方向に中央揃え */
+  gap: 8px;
+  /* 要素間のスペースを設定 */
 }
 
 .username {
+  font-weight: bold;
   font-size: 0.9em;
   color: #333;
+}
+
+.username-en {
+  font-size: 0.9em;
+  color: #6e6e6e;
 }
 
 .content-wrapper {
@@ -168,6 +473,8 @@ export default {
 .empty-space {
   width: 40px;
   flex-shrink: 0;
+  border-radius: 50%;
+  margin-right: 10px;
 }
 
 .content-area {
@@ -177,18 +484,26 @@ export default {
   flex-direction: column;
   justify-content: space-between;
   margin-right: 20px;
-  /* 空白を追加して余白を調整 */
+  height: auto;
 }
 
 .content {
   margin-bottom: 5px;
   text-align: left;
+  align-items: center;
+  /* 子要素を中央揃え */
 }
 
 ::v-deep a {
-  word-wrap: break-word;      /* 長いURLを折り返す */
-  overflow-wrap: break-word;  /* URLを強制的に折り返す */
-  white-space: normal;        /* 改行を許可 */
+  margin-bottom: 5px;
+  text-align: left;
+  word-break: break-all;
+  word-wrap: break-word;
+  /* 長いURLを折り返す */
+  overflow-wrap: break-word;
+  /* URLを強制的に折り返す */
+  white-space: normal;
+  /* 改行を許可 */
 }
 
 .date {
@@ -209,7 +524,8 @@ export default {
   border-radius: 8px;
 }
 
-::v-deep  .url-title {
+::v-deep .url-title {
+  text-align: left;
   font-size: 14px;
 }
 
@@ -224,5 +540,175 @@ export default {
 
 ::v-deep .url-preview-container {
   margin-top: 20px;
+}
+
+.image-gallery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 20px;
+  margin-bottom: 20px;
+  max-height: none;
+  /* 高さの制限を解除 */
+  overflow: visible;
+  /* 子要素がはみ出ないように設定 */
+  transition: max-height 0.3s ease;
+}
+
+.image-gallery.expanded {
+  max-height: none !important;
+}
+
+.expand-button {
+  display: block;
+  margin: 10px auto;
+  padding: 8px 16px;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+::v-deep .image-gallery.single-image {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  max-height: 600px !important;
+}
+
+::v-deep .image-gallery.multi-image {
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  grid-auto-rows: minmax(150px, auto);
+  overflow: hidden;
+  max-height: 500px;
+  transition: max-height 0.3s ease;
+}
+
+.image-item {
+  flex: 1 1 45%;
+  /* 幅を45%にして2列表示 */
+  max-width: 100%;
+  max-height: 60%;
+  overflow: hidden;
+}
+
+.image-item img {
+  width: 100%;
+  height: auto;
+  max-height: 500px;
+  /* 画像の最大高さを設定 */
+  object-fit: cover;
+  border-radius: 8px;
+  /* 画像に角丸を付ける（任意） */
+}
+
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.8);
+  /* 背景を暗く */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.modal-image {
+  max-width: 90%;
+  max-height: 90%;
+}
+
+.expand-button {
+  position: relative;
+  padding: 8px 16px;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(255, 255, 255, 1));
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: -80px;
+  width: 100%;
+  height: 60px;
+}
+
+.expand-button:hover .expand-button-context {
+  padding: 10px 13px;
+}
+
+.expand-button-context {
+  display: inline-block;
+  background-color: rgba(93, 93, 93, 0.8);
+  padding: 6px 10px;
+  font-size: .8em;
+  border-radius: 999px;
+  box-shadow: 0 2px 6px #0003;
+}
+
+.reaction-list {
+  display: flex;
+  flex-wrap: wrap;
+  /* 必要に応じて折り返し可能に */
+  gap: 10px;
+  /* アイテム間のスペース */
+  padding: 5px;
+}
+
+.reaction-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background-color: rgba(223, 223, 223, 0.2);
+  padding: 4px 6px;
+  font-size: .8em;
+  border-radius: 7px;
+  box-shadow: 0 2px 3px #0003;
+
+}
+
+/* スクロール中は拡大を無効化 */
+.reaction-item:hover,
+.reaction-item:active {
+  transform: none;
+  animation: none;
+  z-index: auto;
+}
+
+.reaction-item:hover {
+  transform: scale(2);
+  animation: enlarge 0.1s ease forwards;
+  z-index: 10;
+}
+
+/* タッチデバイスではタップ時に拡大 */
+.is-tapped .reaction-item {
+  transform: scale(2);
+  animation: enlarge 0.1s ease forwards;
+  z-index: 10;
+}
+
+.reaction-count {
+  font-size: 14px;
+}
+
+.user-popup {
+  position: fixed;
+  padding: 10px;
+  border-radius: 5px;
+  z-index: 1000;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  max-width: 200px;
+  font-size: 0.9em;
+  background-color: rgba(255, 255, 255, 0.8);
+}
+
+.user-popup ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 </style>

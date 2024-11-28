@@ -13,7 +13,11 @@
             "args": [
                 "run",
                 "--no-debugger",
-                "--no-reload"
+                "--no-reload",
+                "--host=0.0.0.0",
+                "--port=5000",
+                "--cert=backend/sample.crt",
+                "--key=backend/sample.key"
             ],
             "jinja": true
         }

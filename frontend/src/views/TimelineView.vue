@@ -1,6 +1,15 @@
 <template>
   <div class="timeline">
-    <TimelineCard v-for="post in posts" :key="post.id" :post="post" />
+    <!-- タイムライン切り替えボタン -->
+    <div class="timeline-toggle">
+      <button :class="{ 'active': !isFollowing }" @click="toggleTimeline(false)">全体</button>
+      <button :class="{ 'active': isFollowing }" @click="toggleTimeline(true)">フォロー中</button>
+    </div>
+
+    <!-- タイムラインカードの表示 -->
+    <TimelineCard v-for="post in posts" :key="post.id" :post="post" :accessToken="accessToken" :emojiMap="emojiMap" />
+
+    <!-- 無限スクロールのトリガー -->
     <div ref="infiniteScrollTrigger" class="loading-trigger">Loading...</div>
   </div>
 </template>
@@ -8,123 +17,171 @@
 <script>
 import TimelineCard from '@/components/TimelineCard.vue';
 import unicodeEmojis from '@/assets/emoji.json'; //https://raw.githubusercontent.com/iamcal/emoji-data/master/emoji.json
+import { API_BASE_URL } from '@/config.js';
 
 export default {
   components: { TimelineCard },
   props: {
-    code: {
+    accessToken:{
       type: String,
-      required: true // 必須のプロパティとして設定
+      required: true
     }
   },
   data() {
     return {
-      //accessToken: null,
-      accessToken: 'xoxe.xoxp-1-Mi0yLTE4NTQ5MzMwMjI5Mi04NjQ3NzMyMzA0NzAtNzk4OTQyMTYzMjExMy04MDAwMjYyNTk4NDk3LWU1ODE1MjNlYTU5NTY3OTg0NDczOGI4ZDIxZDU5MTNhOTNiOGJkYzI0MDA0ZWI0YTBiYzIyMTMyZDhiMTQyYTI',
+      isFollowing: true, // フォロー中タイムラインor全体タイムラインを管理
       posts: [], // タイムラインデータを保持
       page: 1, // ページ番号
       loading: false,
-      next_cursor: null
+      nextCursor: null,
+      emojiMap: [],
     }
   },
-  watch: {
-    // codeが取得できるまで待機
-    code(newCode) {
-      if (newCode) {
-        console.log('Code received in TimelineView:', this.code); // ここで確認
-        this.loadPosts() // 初回データ読み込み
-        this.initIntersectionObserver()
-      }
-    }
+  provide() {
+    return {
+      unicodeEmojis: unicodeEmojis,
+    };
+  },
+  computed: {
+    computedEmojiMap() {
+      return this.emojiMap || [];
+    },
+  },
+  async mounted() {
+    this.init();
   },
   methods: {
-    // APIまたはデータソースからの投稿を読み込む
-    async loadPosts() {
-      this.loading = true
-      console.log('Slack Code in loadPosts:', this.code); // ここで確認
-      if (this.accessToken == null) {
-        this.accessToken = await fetch(`http://127.0.0.1:5000/api/v1/getAccessToken?code=${this.code}`, {
-          method: 'GET', // HTTPメソッド
-          headers: {
-            'Content-Type': 'application/json' // コンテンツタイプをJSONに設定
-          },
-        }).then(response => {
-          if (response.status != 200) {
-            throw new Error('Network response was not ok'); // レスポンスがエラーの場合
-          }
-          return response.json(); // JSONとしてレスポンスをパース
-        })
-          .then(d => {
-            // dataにはパースされたJSONが格納される
-            console.log('accessToken:', d);
-
-            // 特定のプロパティを取得
-            return d; // ここで特定の値を取得
-          })
-          .catch(error => {
-            console.error('Error fetching data:', error); // エラー処理
-          });
-
+    async init() {
+      console.log("TimelineCard called");
+      this.fetchPosts();
+    },
+    fetchPosts() {
+      if (this.accessToken) {
+        this.resetPosts();
+        this.initIntersectionObserver();
       }
+      this.loading = false
+    },
+    toggleTimeline(isFollowing) {
+      // ローディング中でないかつ現在の状態と異なる場合、タイムラインを更新
+      if (!this.loading) {
+        if (this.isFollowing !== isFollowing) {
+          this.isFollowing = isFollowing;
+          this.nextCursor = null;
+          this.fetchPosts();
+        }
+      }
+    },
+    resetPosts() {
+      // 投稿データと表示をリセット
+      this.posts = [];
+      this.$nextTick(() => {
+        // 投稿をリセット後に表示済みのカードを削除
+        const timelineCards = this.$el.querySelectorAll('TimelineCard');
+        timelineCards.forEach(card => card.remove());
+      });
+    },
+    makeQuery(channels) {
+      // チャンネル名だけを抽出して、in: 形式で文字列にする
+      const channelNames = channels.map(channel => channel.name);
+      return 'in:' + channelNames.join(' in:');  // 'in:'で区切って結合
+    },
+    async loadPosts() {
+      // APIまたはデータソースからの投稿を読み込む
+      console.log("loadPosts called");
+
+      this.loading = true;
+
       // FlaskサーバーからSlackメッセージを取得
-      const emojis = await fetch(`http://127.0.0.1:5000/api/v1/slack/emojis`, {
-        method: 'GET', // HTTPメソッド
+      const channels = await fetch(`${API_BASE_URL}/api/v1/slack/timesChannels`, {
+        method: 'GET',
         headers: {
-          'Authorization': `Bearer ${this.accessToken}` // コンテンツタイプをJSONに設定
+          'Authorization': `Bearer ${this.accessToken}`
         }
       }).then(response => {
-        if (response.status != 200) {
-          throw new Error('Network response was not ok'); // レスポンスがエラーの場合
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
         }
-        return response.json(); // JSONとしてレスポンスをパース
+        return response.json();
       }).catch(error => {
-        console.error('Error fetching data:', error); // エラー処理
+        console.error('Error fetching data:', error);
       });
-      console.log("emojiMap:", emojis);
+      console.log("channelMap:", channels);
+
+      // FlaskサーバーからSlacke絵文字を取得
+      const emojis = await fetch(`${API_BASE_URL}/api/v1/slack/emojis`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.accessToken}`
+        }
+      }).then(response => {
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        return response.json();
+      }).catch(error => {
+        console.error('Error fetching data:', error);
+      });
+      this.emojiMap = emojis;
+      console.log("emojiMap:", this.emojiMap);
 
       try {
         // FlaskサーバーからSlackメッセージを取得
-        const response = await fetch(`http://127.0.0.1:5000/api/v1/slack/messages`, {
-          method: 'POST', // HTTPメソッド
+        const response = await fetch(`${API_BASE_URL}/api/v1/slack/messages?cursor=${encodeURIComponent(this.nextCursor == null ? '*' : this.nextCursor)}&query=${(this.isFollowing ? encodeURIComponent(this.makeQuery(channels.followed_channels)) : encodeURIComponent(this.makeQuery(channels.channels)))}`, {
+          method: 'GET',
           headers: {
-            'Content-Type': 'application/json', // コンテンツタイプをJSONに設定
-            'Authorization': `Bearer ${this.accessToken}` // コンテンツタイプをJSONに設定
-          },
-          body: JSON.stringify({ token: this.accessToken, cursor: this.nextCursor == null ? '*' : this.nextCursor })
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.accessToken}`
+          }
         })
 
         if (response.status == 200) {
-          const data = await response.json()
+          const messages = await response.json();
+          console.log("messageMap:", messages);
 
           // Slackメッセージをタイムライン用にフォーマット
-          const newPosts = data.matches.map((msg, i) => {
-        // メッセージ内容に含まれる絵文字コードを画像URLまたはUnicodeに変換
-        let formattedContent = msg.text.replace(/:([^\s:]+):/g, (match, emojiName) => {
-          // emojiMap から画像URLを取得し、該当する画像タグに変換
-          const emojiUrl = emojis[emojiName];
-          if (emojiUrl) {
-            return `<img src="${emojiUrl}" alt="${emojiName}" class="emoji-image">`;
-          }
-          
-          // emojiMapに存在しない場合、unicodeEmojisで検索
-          const unicodeEmoji = unicodeEmojis.find(emoji => emoji.short_name === emojiName);
-          if (unicodeEmoji) {
-            return '&#x'+ unicodeEmoji.unified;  // Unicode絵文字を返す
-          }
+          const newPosts = messages.matches.map((msg, i) => {
+            // メッセージ内容に含まれる絵文字コードを画像URLまたはUnicodeに変換
+            let formattedContent = msg.text.replace(/:([^\s:]+):/g, (match, emojiName) => {
+              // emojiMap から画像URLを取得し、該当する画像タグに変換
+              const emojiUrl = emojis[emojiName];
+              if (emojiUrl) {
+                return `<img src="${emojiUrl}" alt="${emojiName}" class="emoji-image">`;
+              }
 
-          return match;  // 見つからなければ元の文字列を返す
-        });
+              // emojiMapに存在しない場合、unicodeEmojisで検索
+              const unicodeEmoji = unicodeEmojis.find(emoji => emoji.short_name === emojiName);
+              if (unicodeEmoji) {
+                return `<span class="emoji-image">${this.convertToHtmlEntity(unicodeEmoji.unified)}</span>`;  // Unicode絵文字を返す
+              }
 
-        return {
-          id: (this.page - 1) * 20 + i + 1,
-          channelName: msg.channel.name,
-          content: formattedContent,  // メッセージ内容 (画像に変換済み)
-          attachments: msg.attachments,
-          date: new Date(msg.ts * 1000).toLocaleDateString() // タイムスタンプを日付に変換
-        };
-      });
+              return match;  // 見つからなければ元の文字列を返す
+            });
 
-          this.nextCursor = data.pagination.next_cursor;
+            // チャンネルの創設者と と メッセージのuserIDが一致するかをチェック
+            const channel = channels.followed_channels.find(channel => channel.id === msg.channel.id);
+            const isMaster = channel ? channel.creator === msg.user : false;
+
+            // 正規表現でマッチ
+            formattedContent = formattedContent.replace(/<@(\w+)\s*\|([^\\>]+)>/g, (_, id, name) => {
+              return `<span class="mention" data-id="${id}">@${name}</span>`;
+            });
+            return {
+              id: (this.page - 1) * 20 + i + 1,
+              ts: msg.ts,
+              userId: msg.user,
+              userNeme: msg.username,
+              channelId: msg.channel.id,
+              channelName: "#" + msg.channel.name,
+              channelUrl: msg.permalink,
+              isMaster: isMaster,
+              content: formattedContent,  // メッセージ内容 (画像に変換済み)
+              attachments: msg.attachments,
+              files: msg.files,
+              date: new Date(msg.ts * 1000).toLocaleString(), // タイムスタンプを日付に変換
+            };
+          });
+          this.nextCursor = messages.pagination.next_cursor;
           this.posts.push(...newPosts);
           this.page++;
         } else {
@@ -138,14 +195,25 @@ export default {
     },
     // インフィニットスクロールの設定
     initIntersectionObserver() {
-      const options = { root: null, rootMargin: '0px', threshold: 1.0 }
+      //スクロールしたら自動ロード
+      //よくわからないけど動いてるからOK
+      console.log("initIntersectionObserver called")
+      const options = { root: null, rootMargin: '800px', threshold: 1.0 }
       this.observer = new IntersectionObserver(entries => {
         if (entries[0].isIntersecting && !this.loading) {
           this.loadPosts()
         }
       }, options)
       this.observer.observe(this.$refs.infiniteScrollTrigger)
-    }
+    },
+    convertToHtmlEntity(unicodeString) {
+      // ハイフンで分割して、各部分に &#x と ; を追加
+      // 絵文字の性別や肌の色が指定されている場合にこれが実行される
+      return unicodeString
+        .split('-')
+        .map(code => `&#x${code};`)
+        .join('');
+    },
   },
   beforeUnmount() {
     if (this.observer) this.observer.disconnect()
@@ -154,10 +222,44 @@ export default {
 </script>
 
 <style scoped>
+.timeline-toggle {
+  user-select: none;
+  display: flex;
+  /* border-bottom: 2px solid #ccc; */
+  margin-bottom: 20px;
+}
+
+.timeline-toggle button {
+  flex: 1;
+  padding: 10px;
+  background-color: #f9f9f9;
+  border: none;
+  font-size: 1em;
+  cursor: pointer;
+  text-align: center;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.timeline-toggle button.active {
+  background-color: #94ca68;
+  color: white;
+  font-weight: bold;
+}
+
+.timeline-toggle button:not(.active):hover {
+  background-color: #e0e0e0;
+}
+
+.loading-trigger {
+  text-align: center;
+  font-size: 14px;
+  color: #888;
+}
+
 .timeline {
   max-width: 600px;
   margin: auto;
-  padding: 20px;
+  padding: 10px;
 }
 
 .loading-trigger {

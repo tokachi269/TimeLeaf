@@ -1,2 +1,10 @@
 
 backend/.env
+backend/subjectnames.txt
+*.key
+*.csr
+*.crt
+backend/requirements.txt
+# Python bytecode files
+**/__pycache__/**
+*.py[cod]
