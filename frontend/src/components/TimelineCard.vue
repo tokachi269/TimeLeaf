@@ -401,29 +401,29 @@ export default {
 }
 
 ::v-deep .reaction-item .emoji-image:hover {
+  /* 画像を1倍に拡大(=reaction-item内のemojiは拡大しない) */
   transform: scale(1) !important;
-  /* 画像を1倍に拡大(reaction-item内のemojiは拡大しない) */
 }
 
 /* アニメーションの定義 */
 @keyframes enlarge {
   0% {
-    transform: scale(1);
     /* 通常のサイズ */
+    transform: scale(1);
   }
 
   100% {
-    transform: scale(1.5);
     /* 1.5倍に拡大 */
+    transform: scale(1.5);
   }
 }
 
 .channel-name {
   font-weight: bold;
-  margin-bottom: 8px;
   /* ユーザー情報との間にマージンを追加 */
-  color: inherit;
+  margin-bottom: 8px;
   /* テキストの色を継承 */
+  color: inherit;
   text-decoration: none;
   text-align: center;
 }
@@ -431,8 +431,8 @@ export default {
 .header {
   height: 16px;
   display: flex;
-  align-items: flex-start;
   /* 画像とユーザー情報を上に揃える */
+  align-items: flex-start;
 }
 
 .user-image {
@@ -447,10 +447,10 @@ export default {
   flex-grow: 1;
   display: flex;
   text-align: left;
-  align-items: center;
   /* 垂直方向に中央揃え */
-  gap: 8px;
+  align-items: center;
   /* 要素間のスペースを設定 */
+  gap: 8px;
 }
 
 .username {
@@ -478,8 +478,8 @@ export default {
 }
 
 .content-area {
-  flex-grow: 1;
   /* 残りのスペースを使用 */
+  flex-grow: 1;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -490,20 +490,20 @@ export default {
 .content {
   margin-bottom: 5px;
   text-align: left;
-  align-items: center;
   /* 子要素を中央揃え */
+  align-items: center;
 }
 
 ::v-deep a {
   margin-bottom: 5px;
   text-align: left;
   word-break: break-all;
-  word-wrap: break-word;
   /* 長いURLを折り返す */
-  overflow-wrap: break-word;
+  word-wrap: break-word;
   /* URLを強制的に折り返す */
-  white-space: normal;
+  overflow-wrap: break-word;
   /* 改行を許可 */
+  white-space: normal;
 }
 
 .date {
@@ -549,10 +549,10 @@ export default {
   justify-content: center;
   margin-top: 20px;
   margin-bottom: 20px;
-  max-height: none;
   /* 高さの制限を解除 */
-  overflow: visible;
+  max-height: none;
   /* 子要素がはみ出ないように設定 */
+  overflow: visible;
   transition: max-height 0.3s ease;
 }
 
@@ -587,8 +587,8 @@ export default {
 }
 
 .image-item {
-  flex: 1 1 45%;
   /* 幅を45%にして2列表示 */
+  flex: 1 1 45%;
   max-width: 100%;
   max-height: 60%;
   overflow: hidden;
@@ -597,11 +597,11 @@ export default {
 .image-item img {
   width: 100%;
   height: auto;
-  max-height: 500px;
   /* 画像の最大高さを設定 */
+  max-height: 500px;
   object-fit: cover;
-  border-radius: 8px;
   /* 画像に角丸を付ける（任意） */
+  border-radius: 8px;
 }
 
 .modal {
@@ -610,8 +610,8 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.8);
   /* 背景を暗く */
+  background-color: rgba(0, 0, 0, 0.8);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -651,10 +651,10 @@ export default {
 
 .reaction-list {
   display: flex;
-  flex-wrap: wrap;
   /* 必要に応じて折り返し可能に */
-  gap: 10px;
+  flex-wrap: wrap;
   /* アイテム間のスペース */
+  gap: 10px;
   padding: 5px;
 }
 

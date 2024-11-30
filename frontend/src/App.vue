@@ -39,7 +39,7 @@ export default {
       code.value = route.query.code || '';
     });
     // codeが変更されたらinitを呼び出す
-    watch(code, (newCode) => {
+    watch(code, () => {
       //setup内はmethodを呼び出せないため文字列で呼び出す
       emit('init');
 
@@ -90,9 +90,9 @@ export default {
             if (data.token) {
               this.accessToken = data.token;
               this.team = data.team;
-               // トークンを保存
+              // トークンを保存
               document.cookie = `token=${this.accessToken}; expires=${new Date().setMonth(new Date().getMonth() + 1)}; path=/; SameSite=None; Secure`;
-              if(data.scope){
+              if (data.scope) {
                 document.cookie = `scope=${data.scope}; expires=${new Date().setMonth(new Date().getMonth() + 1)}; path=/; SameSite=None; Secure`;
               }
               this.invalidToken = false;
@@ -167,10 +167,10 @@ export default {
 }
 
 .logo {
-  width: 350px;
   /* 幅を200pxに設定 */
-  height: auto;
+  width: 350px;
   /* 高さは自動で調整 */
+  height: auto;
 }
 
 html {
