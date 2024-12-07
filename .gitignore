@@ -10,3 +10,4 @@ frontend/.env
 *.py[cod]
 *.env
 *.pem
+/frontend/dist
