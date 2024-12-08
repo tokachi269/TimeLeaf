@@ -4,6 +4,7 @@ import { createRouter, createWebHashHistory } from 'vue-router';
 const routes = [
     {
       path: '/', // ルートパスに設定
+      name: 'TimeLeaf',
       code: 'code',
       component: App,
     },

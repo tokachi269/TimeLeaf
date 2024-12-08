@@ -2,7 +2,7 @@ from flask import Flask, render_template, jsonify
 from flask_cors import CORS
 from controller.controller import controller_bp
 
-app = Flask(__name__, static_folder='../frontend/dist/static', template_folder='../frontend/dist')
+app = Flask(__name__, static_folder='../frontend/dist', template_folder='../frontend/dist')
 CORS(app)
 app.register_blueprint(controller_bp)
 
