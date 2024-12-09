@@ -7,5 +7,5 @@ module.exports = defineConfig({
   configureWebpack: {
     devtool: 'source-map'
   },
-  publicPath: process.env.NODE_ENV === 'production' ? '/static/' : '/'
+  publicPath: process.env.NODE_ENV === 'production' ? '/' : '/'
 })
