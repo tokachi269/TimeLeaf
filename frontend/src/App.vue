@@ -9,7 +9,7 @@
 <script>
 import Header from './components/Header.vue'
 import TimelineView from './views/TimelineView.vue'
-import { API_BASE_URL } from '@/config.js';
+import { API_BASE_URL, API_REDIRECT_URL } from '@/config.js';
 import { useRouter, useRoute } from 'vue-router';
 import { ref, onMounted, watch } from 'vue';
 
@@ -125,7 +125,7 @@ export default {
     redirect() {
       const baseUrl = "https://slack.com/oauth/v2/authorize";
       const clientId = "REMOVED";
-      const redirectUri = "https://www.timeleaff.com";
+      const redirectUri = API_REDIRECT_URL;
 
       // 今後 `scope` や `user_scope` を追加しやすくするために配列で管理
       const scope = [];
