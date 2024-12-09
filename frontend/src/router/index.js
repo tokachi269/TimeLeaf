@@ -1,5 +1,5 @@
 import App from '../App.vue';
-import { createRouter, createWebHashHistory } from 'vue-router';
+import { createRouter, createWebHistory } from 'vue-router';
 import NotFound from './components/NotFound.vue' //追記
 
 const routes = [
@@ -18,8 +18,7 @@ const routes = [
 ];
 
 const router = createRouter({
-  mode: "history",
-  history: createWebHashHistory("/"),
+  history: createWebHistory("/"),
   routes,
 });
 
