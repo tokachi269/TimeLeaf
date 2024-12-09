@@ -1,5 +1,5 @@
 import App from '../App.vue';
-import { createRouter, createWebHashHistory } from 'vue-router';
+import { createRouter, createWebHistory } from 'vue-router';
 
 const routes = [
     {
@@ -7,11 +7,12 @@ const routes = [
       name: 'TimeLeaf',
       code: 'code',
       component: App,
+      meta: { title: 'TimeLeaf' }
     },
   ];
   
   const router = createRouter({
-    history: createWebHashHistory(),
+    history: createWebHistory(process.env.BASE_URL),
     routes,
   });
   
