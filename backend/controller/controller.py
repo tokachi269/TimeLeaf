@@ -18,9 +18,9 @@ load_dotenv()
 app = Flask(__name__)
 controller_bp = Blueprint('controller', __name__, url_prefix='/api')
 
-SLACK_CLIENT_ID = os.getenv("SLACK_CLIENT_ID")
-SLACK_CLIENT_SECRET = os.getenv("SLACK_CLIENT_SECRET")
-SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
+SLACK_CLIENT_ID = "REMOVED"
+SLACK_CLIENT_SECRET = "REMOVED"
+SLACK_BOT_TOKEN = "REMOVED"
 
 # 初期化
 authorize_url_generator = AuthorizeUrlGenerator(
