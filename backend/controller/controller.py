@@ -74,7 +74,8 @@ def oauth_redirect():
     params={
         "client_id": SLACK_CLIENT_ID,
         "client_secret": SLACK_CLIENT_SECRET,
-        "code": code
+        "code": code,
+        "redirect_uri":"https://www.timeleaff.com"
     }
 
     response = requests.get(url, params=params, headers=headers)
