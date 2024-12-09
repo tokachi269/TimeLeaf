@@ -114,7 +114,7 @@ def get_slack_messages():
 
     url = "https://slack.com/api/search.messages"
     headers = {
-        "Authorization": f"{token}",
+        "Authorization": f"Bearer {token}",
     }
     params = {
         "query": query,
@@ -145,7 +145,7 @@ def get_slack_message_replies():
 
     url = "https://slack.com/api/conversations.replies"
     headers = {
-        "Authorization": f"{token}",
+        "Authorization": f"Bearer {token}",
     }
     params = {
         "channel": channel,
@@ -184,11 +184,11 @@ def get_slack_message_replies():
 @controller_bp.route('/v1/slack/timesChannels', methods=['GET'])
 def get_slack_times_channels():
     token = request.headers.get('authorization')
-    cursor = request.args.get("cursor")
-    print(f"Cursor received: {cursor}")  # デバッグ用
+    print(token)
+
     url = "https://slack.com/api/conversations.list"
     headers = {
-        "Authorization": f"{token}",
+        "Authorization": f"Bearer {token}",
     }
     params = {
         "limit": 200,
@@ -221,7 +221,7 @@ def get_slack_reactions():
     print(token)
     url = "https://slack.com/api/emoji.list"
     headers = {
-        "Authorization": token,
+        "Authorization": f"Bearer {token}",
     }
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
@@ -242,7 +242,7 @@ def get_slack_users_profile():
 
     url = "https://slack.com/api/users.profile.get"
     headers = {
-        "Authorization": f"{token}",
+        "Authorization": f"Bearer {token}",
     }
     params = {
         "user": user
@@ -268,7 +268,7 @@ def get_image():
         return jsonify({"error": "Image URL is required"}), 400
     
     headers = {
-        "Authorization": token,
+        "Authorization": f"Bearer {token}",
     }
 
     response = requests.get(url, headers=headers)
