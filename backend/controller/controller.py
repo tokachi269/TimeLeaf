@@ -187,7 +187,7 @@ def get_slack_times_channels():
     
     url = "https://slack.com/api/conversations.list"
     headers = {
-        "Authorization": f"{token}",
+        "Authorization": f"Bearer {token}",
     }
     params = {
         "limit": 200,
@@ -220,7 +220,7 @@ def get_slack_reactions():
     print(token)
     url = "https://slack.com/api/emoji.list"
     headers = {
-        "Authorization": token,
+        "Authorization": f"Bearer {token}",
     }
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
