@@ -12,7 +12,7 @@
     <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
 
     <!-- 無限スクロールのトリガー -->
-    <div ref="infiniteScrollTrigger" class="loading-trigger">Loading...</div>
+    <div ref="infiniteScrollTrigger" class="loading-trigger" v-if="loading">ロード中...</div>
   </div>
 </template>
 
@@ -24,7 +24,7 @@ import { API_BASE_URL } from '@/config.js';
 export default {
   components: { TimelineCard },
   props: {
-    accessToken:{
+    accessToken: {
       type: String,
       required: true
     }
@@ -71,6 +71,7 @@ export default {
         if (this.isFollowing !== isFollowing) {
           this.isFollowing = isFollowing;
           this.nextCursor = null;
+          this.errorMessage = "";
           this.fetchPosts();
         }
       }
@@ -130,74 +131,75 @@ export default {
       // フォロー中のチャンネルがない場合
       if (channels.followed_channels.length === 0) {
         this.errorMessage = 'フォローしているチャンネルがありません';
-      }
-      try {
-        // FlaskサーバーからSlackメッセージを取得
-        const response = await fetch(`${API_BASE_URL}/api/v1/slack/messages?cursor=${encodeURIComponent(this.nextCursor == null ? '*' : this.nextCursor)}&query=${(this.isFollowing ? encodeURIComponent(this.makeQuery(channels.followed_channels)) : encodeURIComponent(this.makeQuery(channels.channels)))}`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.accessToken}`
+      } else {
+        try {
+          // FlaskサーバーからSlackメッセージを取得
+          const response = await fetch(`${API_BASE_URL}/api/v1/slack/messages?cursor=${encodeURIComponent(this.nextCursor == null ? '*' : this.nextCursor)}&query=${(this.isFollowing ? encodeURIComponent(this.makeQuery(channels.followed_channels)) : encodeURIComponent(this.makeQuery(channels.channels)))}`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${this.accessToken}`
+            }
+          })
+
+          if (response.status == 200) {
+            const messages = await response.json();
+            console.log("messageMap:", messages);
+
+            // Slackメッセージをタイムライン用にフォーマット
+            const newPosts = messages.matches.map((msg, i) => {
+              // メッセージ内容に含まれる絵文字コードを画像URLまたはUnicodeに変換
+              let formattedContent = msg.text.replace(/:([^\s:]+):/g, (match, emojiName) => {
+                // emojiMap から画像URLを取得し、該当する画像タグに変換
+                const emojiUrl = emojis[emojiName];
+                if (emojiUrl) {
+                  return `<img src="${emojiUrl}" alt="${emojiName}" class="emoji-image">`;
+                }
+
+                // emojiMapに存在しない場合、unicodeEmojisで検索
+                const unicodeEmoji = unicodeEmojis.find(emoji => emoji.short_name === emojiName);
+                if (unicodeEmoji) {
+                  return `<span class="emoji-image">${this.convertToHtmlEntity(unicodeEmoji.unified)}</span>`;  // Unicode絵文字を返す
+                }
+
+                return match;  // 見つからなければ元の文字列を返す
+              });
+
+              // チャンネルの創設者と と メッセージのuserIDが一致するかをチェック
+              const channel = channels.followed_channels.find(channel => channel.id === msg.channel.id);
+              const isMaster = channel ? channel.creator === msg.user : false;
+
+              // 正規表現でマッチ
+              formattedContent = formattedContent.replace(/<@(\w+)\s*\|([^\\>]+)>/g, (_, id, name) => {
+                return `<span class="mention" data-id="${id}">@${name}</span>`;
+              });
+              return {
+                id: (this.page - 1) * 20 + i + 1,
+                ts: msg.ts,
+                userId: msg.user,
+                userNeme: msg.username,
+                channelId: msg.channel.id,
+                channelName: "#" + msg.channel.name,
+                channelUrl: msg.permalink,
+                isMaster: isMaster,
+                content: formattedContent,  // メッセージ内容 (画像に変換済み)
+                attachments: msg.attachments,
+                files: msg.files,
+                date: new Date(msg.ts * 1000).toLocaleString(), // タイムスタンプを日付に変換
+              };
+            });
+            this.nextCursor = messages.pagination.next_cursor;
+            this.posts.push(...newPosts);
+            this.page++;
+          } else {
+            console.error("Failed to fetch messages:", response.error)
           }
-        })
-
-        if (response.status == 200) {
-          const messages = await response.json();
-          console.log("messageMap:", messages);
-
-          // Slackメッセージをタイムライン用にフォーマット
-          const newPosts = messages.matches.map((msg, i) => {
-            // メッセージ内容に含まれる絵文字コードを画像URLまたはUnicodeに変換
-            let formattedContent = msg.text.replace(/:([^\s:]+):/g, (match, emojiName) => {
-              // emojiMap から画像URLを取得し、該当する画像タグに変換
-              const emojiUrl = emojis[emojiName];
-              if (emojiUrl) {
-                return `<img src="${emojiUrl}" alt="${emojiName}" class="emoji-image">`;
-              }
-
-              // emojiMapに存在しない場合、unicodeEmojisで検索
-              const unicodeEmoji = unicodeEmojis.find(emoji => emoji.short_name === emojiName);
-              if (unicodeEmoji) {
-                return `<span class="emoji-image">${this.convertToHtmlEntity(unicodeEmoji.unified)}</span>`;  // Unicode絵文字を返す
-              }
-
-              return match;  // 見つからなければ元の文字列を返す
-            });
-
-            // チャンネルの創設者と と メッセージのuserIDが一致するかをチェック
-            const channel = channels.followed_channels.find(channel => channel.id === msg.channel.id);
-            const isMaster = channel ? channel.creator === msg.user : false;
-
-            // 正規表現でマッチ
-            formattedContent = formattedContent.replace(/<@(\w+)\s*\|([^\\>]+)>/g, (_, id, name) => {
-              return `<span class="mention" data-id="${id}">@${name}</span>`;
-            });
-            return {
-              id: (this.page - 1) * 20 + i + 1,
-              ts: msg.ts,
-              userId: msg.user,
-              userNeme: msg.username,
-              channelId: msg.channel.id,
-              channelName: "#" + msg.channel.name,
-              channelUrl: msg.permalink,
-              isMaster: isMaster,
-              content: formattedContent,  // メッセージ内容 (画像に変換済み)
-              attachments: msg.attachments,
-              files: msg.files,
-              date: new Date(msg.ts * 1000).toLocaleString(), // タイムスタンプを日付に変換
-            };
-          });
-          this.nextCursor = messages.pagination.next_cursor;
-          this.posts.push(...newPosts);
-          this.page++;
-        } else {
-          console.error("Failed to fetch messages:", response.error)
+        } catch (error) {
+          console.error("Error fetching Slack messages:", error)
+          this.errorMessage = 'データの取得中にエラーが発生しました';
+        } finally {
+          this.loading = false
         }
-      } catch (error) {
-        console.error("Error fetching Slack messages:", error)
-        this.errorMessage = 'データの取得中にエラーが発生しました';
-      } finally {
-        this.loading = false
       }
     },
     // インフィニットスクロールの設定
