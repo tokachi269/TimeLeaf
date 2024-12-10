@@ -115,7 +115,7 @@ def get_slack_messages():
     print(request.headers)
     url = "https://slack.com/api/search.messages"
     headers = {
-        "Authorization": f"{token}",
+        "Authorization": f"Bearer {token}",
     }
     params = {
         "query": query,
@@ -146,7 +146,7 @@ def get_slack_message_replies():
 
     url = "https://slack.com/api/conversations.replies"
     headers = {
-        "Authorization": f"{token}",
+        "Authorization": f"Bearer {token}",
     }
     params = {
         "channel": channel,
@@ -243,7 +243,7 @@ def get_slack_users_profile():
 
     url = "https://slack.com/api/users.profile.get"
     headers = {
-        "Authorization": f"{token}",
+        "Authorization": f"Bearer {token}",
     }
     params = {
         "user": user
@@ -269,7 +269,7 @@ def get_image():
         return jsonify({"error": "Image URL is required"}), 400
     
     headers = {
-        "Authorization": token,
+        "Authorization": f"Bearer {token}",
     }
 
     response = requests.get(url, headers=headers)
