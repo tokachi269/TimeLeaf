@@ -202,10 +202,12 @@ def get_slack_times_channels():
                 for channel in res.get("channels", [])
                 if isinstance(channel, dict) and channel.get("name", "").startswith('times')
             ]
+            # timesFollowed = [
+            #     channel
+            #     for channel in timesChannels
+            #     if channel.get('is_member')
+            # ]
             timesFollowed = [
-                channel
-                for channel in timesChannels
-                if channel.get('is_member')
             ]
             return jsonify({"channels":timesChannels,"followed_channels":timesFollowed})
         else:
