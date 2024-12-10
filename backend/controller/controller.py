@@ -222,7 +222,7 @@ def get_slack_reactions():
     headers = {
         "Authorization": f"Bearer {token}",
     }
-    print(request)
+    print(request.headers)
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
         res = response.json() 
