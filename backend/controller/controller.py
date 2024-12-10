@@ -134,7 +134,7 @@ def get_slack_messages():
 
 @controller_bp.route('/v1/slack/messages/replies', methods=['GET'])
 def get_slack_message_replies():
-    token = request.headers.get('Authorization')
+    token = request.cookies.get('token')
     channel = request.args.get("channel")
     ts = request.args.get("ts")
     global user_cache
@@ -183,7 +183,7 @@ def get_slack_message_replies():
 
 @controller_bp.route('/v1/slack/timesChannels', methods=['GET'])
 def get_slack_times_channels():
-    token = request.headers.get('Authorization')
+    token = request.cookies.get('token')
     
     url = "https://slack.com/api/conversations.list"
     headers = {
@@ -216,7 +216,7 @@ def get_slack_times_channels():
 
 @controller_bp.route('/v1/slack/emojis', methods=['GET'])
 def get_slack_reactions():
-    token = request.headers.get('authorization')
+    token = request.cookies.get('token')
     print(token)
     url = "https://slack.com/api/emoji.list"
     headers = {
@@ -237,7 +237,7 @@ def get_slack_reactions():
     
 @controller_bp.route('/v1/slack/users/profile', methods=['GET'])
 def get_slack_users_profile():
-    token = request.headers.get('authorization')
+    token = request.cookies.get('token')
     user = request.args.get("user")
 
     url = "https://slack.com/api/users.profile.get"
