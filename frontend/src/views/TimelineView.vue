@@ -131,7 +131,7 @@ export default {
       this.emojiMap = emojis;
       console.log("emojiMap:", this.emojiMap);
       // フォロー中のチャンネルがない場合
-      if (channels.followed_channels.length === 0) {
+      if (this.isFollowing && channels.followed_channels.length === 0) {
         this.errorMessage = 'フォローしているチャンネルがありません';
         this.loading = false
       } else {
