@@ -216,13 +216,13 @@ def get_slack_times_channels():
 
 @controller_bp.route('/v1/slack/emojis', methods=['GET'])
 def get_slack_reactions():
-    token = request.headers.get('Authorization')
+    token = request.headers.get('authorization')
     print(token)
     url = "https://slack.com/api/emoji.list"
     headers = {
         "Authorization": f"Bearer {token}",
     }
-    print(headers)
+    print(request)
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
         res = response.json() 
