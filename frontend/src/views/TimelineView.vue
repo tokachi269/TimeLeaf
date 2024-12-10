@@ -133,6 +133,7 @@ export default {
       // フォロー中のチャンネルがない場合
       if (channels.followed_channels.length === 0) {
         this.errorMessage = 'フォローしているチャンネルがありません';
+        this.loading = false
       } else {
         try {
           // FlaskサーバーからSlackメッセージを取得
