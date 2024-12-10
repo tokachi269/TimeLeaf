@@ -8,6 +8,8 @@
 
     <!-- タイムラインカードの表示 -->
     <TimelineCard v-for="post in posts" :key="post.id" :post="post" :accessToken="accessToken" :emojiMap="emojiMap" />
+    <!-- フォロー中のチャンネルがない場合のメッセージ -->
+    <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
 
     <!-- 無限スクロールのトリガー -->
     <div ref="infiniteScrollTrigger" class="loading-trigger">Loading...</div>
@@ -35,6 +37,7 @@ export default {
       loading: false,
       nextCursor: null,
       emojiMap: [],
+      errorMessage: '', // エラーメッセージを格納する変数
     }
   },
   provide() {
@@ -124,7 +127,10 @@ export default {
       });
       this.emojiMap = emojis;
       console.log("emojiMap:", this.emojiMap);
-
+      // フォロー中のチャンネルがない場合
+      if (channels.followed_channels.length === 0) {
+        this.errorMessage = 'フォローしているチャンネルがありません';
+      }
       try {
         // FlaskサーバーからSlackメッセージを取得
         const response = await fetch(`${API_BASE_URL}/api/v1/slack/messages?cursor=${encodeURIComponent(this.nextCursor == null ? '*' : this.nextCursor)}&query=${(this.isFollowing ? encodeURIComponent(this.makeQuery(channels.followed_channels)) : encodeURIComponent(this.makeQuery(channels.channels)))}`, {
@@ -189,6 +195,7 @@ export default {
         }
       } catch (error) {
         console.error("Error fetching Slack messages:", error)
+        this.errorMessage = 'データの取得中にエラーが発生しました';
       } finally {
         this.loading = false
       }
