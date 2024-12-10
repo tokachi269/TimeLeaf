@@ -108,7 +108,7 @@ def auth_test(token):
 
 @controller_bp.route('/v1/slack/messages', methods=['GET'])
 def get_slack_messages():
-    token = request.headers.get('Authorization')
+    token = request.cookies.get('token')
     cursor = request.args.get("cursor")
     query = request.args.get("query")
 
@@ -261,7 +261,7 @@ def get_slack_users_profile():
     
 @controller_bp.route('/v1/slack/image', methods=['GET'])
 def get_image():
-    token = request.headers.get('authorization')
+    token = request.cookies.get('token')
     url = request.args.get("url")
     type = request.args.get("type")
     if not (url or type):
