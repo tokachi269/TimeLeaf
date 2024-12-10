@@ -56,7 +56,7 @@ update_user_cache()
 @controller_bp.route("/v1/getAccessToken", methods=['GET'])
 def oauth_redirect():
     code = request.args.get("code")
-    token = request.headers.get('Authorization')
+    token = request.headers.get('authorization')
 
     if not (code or token):
         print("Both code and token are empty")
@@ -108,14 +108,13 @@ def auth_test(token):
 
 @controller_bp.route('/v1/slack/messages', methods=['GET'])
 def get_slack_messages():
-    token = request.cookies.get('token')
+    token = request.headers.get('authorization')
     cursor = request.args.get("cursor")
     query = request.args.get("query")
-    print(request.args)
-    print(request.headers)
+
     url = "https://slack.com/api/search.messages"
     headers = {
-        "Authorization": f"Bearer {token}",
+        "Authorization": f"{token}",
     }
     params = {
         "query": query,
@@ -135,7 +134,7 @@ def get_slack_messages():
 
 @controller_bp.route('/v1/slack/messages/replies', methods=['GET'])
 def get_slack_message_replies():
-    token = request.cookies.get('token')
+    token = request.headers.get('authorization')
     channel = request.args.get("channel")
     ts = request.args.get("ts")
     global user_cache
@@ -146,7 +145,7 @@ def get_slack_message_replies():
 
     url = "https://slack.com/api/conversations.replies"
     headers = {
-        "Authorization": f"Bearer {token}",
+        "Authorization": f"{token}",
     }
     params = {
         "channel": channel,
@@ -184,11 +183,11 @@ def get_slack_message_replies():
 
 @controller_bp.route('/v1/slack/timesChannels', methods=['GET'])
 def get_slack_times_channels():
-    token = request.cookies.get('token')
+    token = request.headers.get('authorization')
     
     url = "https://slack.com/api/conversations.list"
     headers = {
-        "Authorization": f"Bearer {token}",
+        "Authorization": f"{token}",
     }
     params = {
         "limit": 200,
@@ -217,13 +216,12 @@ def get_slack_times_channels():
 
 @controller_bp.route('/v1/slack/emojis', methods=['GET'])
 def get_slack_reactions():
-    token = request.cookies.get('token')
+    token = request.headers.get('authorization')
     print(token)
     url = "https://slack.com/api/emoji.list"
     headers = {
-        "Authorization": f"Bearer {token}",
+        "Authorization": token,
     }
-
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
         res = response.json() 
@@ -238,12 +236,12 @@ def get_slack_reactions():
     
 @controller_bp.route('/v1/slack/users/profile', methods=['GET'])
 def get_slack_users_profile():
-    token = request.cookies.get('token')
+    token = request.headers.get('authorization')
     user = request.args.get("user")
 
     url = "https://slack.com/api/users.profile.get"
     headers = {
-        "Authorization": f"Bearer {token}",
+        "Authorization": f"{token}",
     }
     params = {
         "user": user
@@ -262,14 +260,14 @@ def get_slack_users_profile():
     
 @controller_bp.route('/v1/slack/image', methods=['GET'])
 def get_image():
-    token = request.cookies.get('token')
+    token = request.headers.get('authorization')
     url = request.args.get("url")
     type = request.args.get("type")
     if not (url or type):
         return jsonify({"error": "Image URL is required"}), 400
     
     headers = {
-        "Authorization": f"Bearer {token}",
+        "Authorization": token,
     }
 
     response = requests.get(url, headers=headers)
