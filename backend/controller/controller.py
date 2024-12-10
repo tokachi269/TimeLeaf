@@ -112,6 +112,7 @@ def get_slack_messages():
     cursor = request.args.get("cursor")
     query = request.args.get("query")
     print(request.args)
+    print(request.headers)
     url = "https://slack.com/api/search.messages"
     headers = {
         "Authorization": f"{token}",
