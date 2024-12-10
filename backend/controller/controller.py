@@ -111,7 +111,7 @@ def get_slack_messages():
     token = request.cookies.get('token')
     cursor = request.args.get("cursor")
     query = request.args.get("query")
-
+    print(request.args)
     url = "https://slack.com/api/search.messages"
     headers = {
         "Authorization": f"{token}",
@@ -222,7 +222,7 @@ def get_slack_reactions():
     headers = {
         "Authorization": f"Bearer {token}",
     }
-    print(request.headers)
+
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
         res = response.json() 
