@@ -12,7 +12,9 @@
     <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
 
     <!-- 無限スクロールのトリガー -->
-    <div ref="infiniteScrollTrigger" class="loading-trigger" v-if="loading">ロード中...</div>
+    <div ref="infiniteScrollTrigger" class="loading-trigger">
+      <div v-if="loading">ロード中...</div>
+    </div>
   </div>
 </template>
 
