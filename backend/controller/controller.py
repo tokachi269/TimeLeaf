@@ -56,7 +56,7 @@ update_user_cache()
 @controller_bp.route("/v1/getAccessToken", methods=['GET'])
 def oauth_redirect():
     code = request.args.get("code")
-    token = request.headers.get('authorization')
+    token = request.headers.get('Authorization')
 
     if not (code or token):
         print("Both code and token are empty")
@@ -108,7 +108,7 @@ def auth_test(token):
 
 @controller_bp.route('/v1/slack/messages', methods=['GET'])
 def get_slack_messages():
-    token = request.headers.get('authorization')
+    token = request.headers.get('Authorization')
     cursor = request.args.get("cursor")
     query = request.args.get("query")
 
@@ -134,7 +134,7 @@ def get_slack_messages():
 
 @controller_bp.route('/v1/slack/messages/replies', methods=['GET'])
 def get_slack_message_replies():
-    token = request.headers.get('authorization')
+    token = request.headers.get('Authorization')
     channel = request.args.get("channel")
     ts = request.args.get("ts")
     global user_cache
@@ -183,7 +183,7 @@ def get_slack_message_replies():
 
 @controller_bp.route('/v1/slack/timesChannels', methods=['GET'])
 def get_slack_times_channels():
-    token = request.headers.get('authorization')
+    token = request.headers.get('Authorization')
     
     url = "https://slack.com/api/conversations.list"
     headers = {
@@ -216,7 +216,7 @@ def get_slack_times_channels():
 
 @controller_bp.route('/v1/slack/emojis', methods=['GET'])
 def get_slack_reactions():
-    token = request.headers.get('authorization')
+    token = request.headers.get('Authorization')
     print(token)
     url = "https://slack.com/api/emoji.list"
     headers = {
