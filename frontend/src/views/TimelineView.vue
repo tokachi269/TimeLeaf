@@ -62,6 +62,7 @@ export default {
     },
     fetchPosts() {
       if (this.accessToken) {
+        this.isFollowing = this.getCookie('isFollowing');
         this.resetPosts();
         this.initIntersectionObserver();
       }
@@ -75,6 +76,7 @@ export default {
           this.nextCursor = null;
           this.errorMessage = "";
           this.fetchPosts();
+          document.cookie = `isFollowing=${this.isFollowing}; expires=${new Date().setMonth(new Date().getMonth() + 1)}; path=/; SameSite=None; Secure`;
         }
       }
     },
@@ -194,6 +196,7 @@ export default {
             this.nextCursor = messages.pagination.next_cursor;
             this.posts.push(...newPosts);
             this.page++;
+            this.errorMessage = '';
           } else {
             console.error("Failed to fetch messages:", response.error)
           }
@@ -225,6 +228,11 @@ export default {
         .split('-')
         .map(code => `&#x${code};`)
         .join('');
+    },
+    getCookie(name) {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop().split(';').shift();
     },
   },
   beforeUnmount() {
