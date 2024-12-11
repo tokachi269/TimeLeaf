@@ -58,11 +58,11 @@ export default {
   methods: {
     async init() {
       console.log("TimelineCard called");
+      this.isFollowing = this.getCookie('isFollowing');
       this.fetchPosts();
     },
     fetchPosts() {
       if (this.accessToken) {
-        this.isFollowing = this.getCookie('isFollowing');
         this.resetPosts();
         this.initIntersectionObserver();
       }
