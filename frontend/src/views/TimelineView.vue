@@ -13,7 +13,7 @@
 
     <!-- 無限スクロールのトリガー -->
     <div ref="infiniteScrollTrigger" class="loading-trigger">
-      <div v-if="loading">ロード中...</div>
+      <div v-if="loading">Loading...</div>
     </div>
   </div>
 </template>
