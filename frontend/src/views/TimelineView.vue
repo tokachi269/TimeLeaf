@@ -58,7 +58,7 @@ export default {
   methods: {
     async init() {
       console.log("TimelineCard called");
-      this.isFollowing = "true" === this.getCookie('isFollowing').toLowerCase() ;
+      this.isFollowing = this.getCookie('isFollowing')?.toLowerCase() === "true";
       this.fetchPosts();
     },
     fetchPosts() {
