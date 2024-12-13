@@ -57,7 +57,7 @@ update_user_cache()
 def oauth_redirect():
     code = request.args.get("code")
     token = request.headers.get('authorization')
-    print( request.headers.get('origin'))
+    print( request.headers.get('referer'))
     if not (code or token):
         print("Both code and token are empty")
         return jsonify({"error": "Both code and token are empty"}), 400
