@@ -56,6 +56,7 @@
 import { toRaw } from 'vue';
 import { nextTick } from 'vue';
 import { API_BASE_URL } from '@/config.js';
+
 export default {
   props: {
     post: {
@@ -93,6 +94,7 @@ export default {
       hoveredUsers: [],
       hoveredReactionName: "",
       popupPosition: { top: 0, left: 0 },
+      thumbnailHtml: "",
     };
   },
   inject: {
@@ -100,7 +102,6 @@ export default {
   },
   async mounted() {
     this.profile = this.fetchUserProfile();
-
     // 画像ファイルの URL を取得
     if (this.post.files) {
       for (const file of this.post.files) {
@@ -119,7 +120,7 @@ export default {
         if (this.$refs.imageGallery) {
           observer.observe(this.$refs.imageGallery);
         }
-
+        this.thumbnailHtml = this.extractThumbnail();
       }
     }
 
@@ -229,6 +230,23 @@ export default {
       } catch (error) {
         console.error("Error fetching image:", error);
         return file.thumb_480; // エラーが発生した場合、元のURLを表示
+      }
+    },
+    extractThumbnail() {
+      if (this.post.attachments && this.post.attachments.length > 0) {
+        const attachment = this.post.attachments[0]; // 最初の添付情報を取得
+        if (attachment.image_url && attachment.title && attachment.title_link) {
+          // サムネイル用HTMLを作成
+          this.thumbnailHtml = `
+            <div class="url-preview">
+              <img src="${attachment.image_url}" alt="Thumbnail" class="url-thumbnail" />
+              <div class="url-title">
+                <a href="${attachment.title_link}" target="_blank">${attachment.title}</a>
+              </div>
+            </div>
+          `;
+          console.log(this.thumbnailHtml);
+        }
       }
     },
     toggleExpanded() {

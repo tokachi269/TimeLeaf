@@ -89,6 +89,7 @@ export default {
         timelineCards.forEach(card => card.remove());
       });
     },
+
     makeQuery(channels) {
       // チャンネル名だけを抽出して、in: 形式で文字列にする
       const channelNames = channels.map(channel => channel.name);
