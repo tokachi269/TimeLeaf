@@ -3,7 +3,7 @@ from flask_cors import CORS
 from controller.controller import controller_bp
 
 app = Flask(__name__, static_folder='../frontend/dist/static', template_folder='../frontend/dist')
-CORS(app, resources={r"/*": {"origins": ["https://localhost:8081", "https://www.timeleaff.com"], "allow_headers": ["Authorization", "Content-Type"]}})
+CORS(app, resources={r"/*": {"origins": ["https://192.168.1.2:8081", "https://www.timeleaff.com"], "allow_headers": ["Authorization", "Content-Type"]}})
 app.register_blueprint(controller_bp)
 
 @app.route('/', defaults={'path': ''})
