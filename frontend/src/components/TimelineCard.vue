@@ -102,6 +102,7 @@ export default {
   },
   async mounted() {
     this.profile = this.fetchUserProfile();
+    this.thumbnailHtml = this.extractThumbnail();
     // 画像ファイルの URL を取得
     if (this.post.files) {
       for (const file of this.post.files) {
@@ -120,7 +121,6 @@ export default {
         if (this.$refs.imageGallery) {
           observer.observe(this.$refs.imageGallery);
         }
-        this.thumbnailHtml = this.extractThumbnail();
       }
     }
 
