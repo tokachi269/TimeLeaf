@@ -267,7 +267,57 @@ def get_slack_users_profile():
             return jsonify(res)
     else:
         return jsonify({"error": "Failed to fetch profile"}), 500
-    
+
+@controller_bp.route('/v1/slack/reactions/insert', methods=['POST'])
+def get_slack_users_profile():
+    token = request.headers.get('authorization')
+    channelId = request.args.get("channelId")
+    name = request.args.get("name")
+    ts = request.args.get("ts")
+
+    url = "https://slack.com/api/reactions.add"
+    headers = {
+        "Authorization": f"{token}",
+    }
+    params = {
+        "channel": channelId,
+        "name": name,
+        "timestamp": ts,
+    }
+    response = requests.get(url, headers=headers, params=params)
+    if response.status_code == 200:
+        if response.json().get("ok"):
+            return jsonify(), 200
+        else:
+            return jsonify(), 400
+    else:
+        return jsonify({"error": "Failed to fetch profile"}), 500
+
+@controller_bp.route('/v1/slack/reactions/delete', methods=['POST'])
+def get_slack_users_profile():
+    token = request.headers.get('authorization')
+    channelId = request.args.get("channelId")
+    name = request.args.get("name")
+    ts = request.args.get("ts")
+
+    url = "https://slack.com/api/reactions.remove"
+    headers = {
+        "Authorization": f"{token}",
+    }
+    params = {
+        "channel": channelId,
+        "name": name,
+        "timestamp": ts,
+    }
+    response = requests.get(url, headers=headers, params=params)
+    if response.status_code == 200:
+        if response.json().get("ok"):
+            return jsonify(), 200
+        else:
+            return jsonify(), 400
+    else:
+        return jsonify({"error": "Failed to fetch profile"}), 500
+ 
 @controller_bp.route('/v1/slack/image', methods=['GET'])
 def get_image():
     token = request.headers.get('authorization')
