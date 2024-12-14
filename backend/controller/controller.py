@@ -11,6 +11,7 @@ import requests
 import os
 import os
 from datetime import datetime, timedelta
+from urllib.parse import urlparse
 
 # 環境変数を読み込み
 load_dotenv()
@@ -71,11 +72,18 @@ def oauth_redirect():
     headers = {
         'Content-Type': 'application/x-www-form-urlencoded'
     }
+    referer = request.headers.get('referer')
+    
+    if referer:
+        parsed_referer = urlparse(referer)
+        domain = parsed_referer.netloc
+        print(f"Referer domain: {domain}")
+
     params={
         "client_id": SLACK_CLIENT_ID,
         "client_secret": SLACK_CLIENT_SECRET,
         "code": code,
-        "redirect_uri":request.headers.get('referer')
+        "redirect_uri":domain
     }
     print(request.headers.get('referer'))
     response = requests.get(url, params=params, headers=headers)
