@@ -6,8 +6,14 @@
       <button :class="{ 'active': isFollowing }" @click="toggleTimeline(true)">フォロー中</button>
     </div>
 
+    <!-- Emoji Picker -->
+    <div v-if="showEmojiPicker" :style="{ top: pickerPosition.top + 'px', left: pickerPosition.left + 'px' }"
+      class="emoji-picker">
+      <Picker :data="emojiIndex" set="google" @select="addReaction" />
+    </div>
     <!-- タイムラインカードの表示 -->
-    <TimelineCard v-for="post in posts" :key="post.id" :post="post" :accessToken="accessToken" :emojiMap="emojiMap" />
+    <TimelineCard v-for="post in posts" :key="post.id" :post="post" :accessToken="accessToken" :emojiMap="emojiMap"
+      @open-picker="handleOpenPicker" />
     <!-- フォロー中のチャンネルがない場合のメッセージ -->
     <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
 
@@ -22,9 +28,12 @@
 import TimelineCard from '@/components/TimelineCard.vue';
 import unicodeEmojis from '@/assets/emoji.json'; //https://raw.githubusercontent.com/iamcal/emoji-data/master/emoji.json
 import { API_BASE_URL } from '@/config.js';
+import "emoji-mart-vue-fast/css/emoji-mart.css";
+import { Picker, EmojiIndex } from "emoji-mart-vue-fast/src";
+import data from "emoji-mart-vue-fast/data/google.json";
 
 export default {
-  components: { TimelineCard },
+  components: { TimelineCard, Picker },
   props: {
     accessToken: {
       type: String,
@@ -40,6 +49,13 @@ export default {
       nextCursor: null,
       emojiMap: [],
       errorMessage: '', // エラーメッセージを格納する変数
+      showEmojiPicker: false,
+      selectedPostId: null,
+      emojiIndex: new EmojiIndex(data),
+      pickerPosition: {
+        top: 0, // Pickerの高さを考慮して調整
+        left: 0
+      }, // Pickerのスタイルを格納する変数
     }
   },
   provide() {
@@ -189,7 +205,7 @@ export default {
                 channelUrl: msg.permalink,
                 isMaster: isMaster,
                 content: formattedContent,  // メッセージ内容 (画像に変換済み)
-                attachments: msg.attachments,
+                thumbnailHtmls: msg.attachments,
                 files: msg.files,
                 date: new Date(msg.ts * 1000).toLocaleString(), // タイムスタンプを日付に変換
               };
@@ -234,6 +250,23 @@ export default {
       const value = `; ${document.cookie}`;
       const parts = value.split(`; ${name}=`);
       if (parts.length === 2) return parts.pop().split(';').shift();
+    },
+    showEmoji(emoji) {
+      this.emojisOutput = this.emojisOutput + emoji.native;
+      this.showEmojiPicker = false;
+    },
+    handleOpenPicker(ts, event) {
+      this.selectedPostId = ts;
+      this.showEmojiPicker = true;
+      // ホバーした要素の位置を取得
+      const targetElement = event.currentTarget;
+      const rect = targetElement.getBoundingClientRect();
+
+      // Pickerの位置を設定
+      this.pickerStyle = {
+        top: rect.bottom + 10,
+        left: rect.left - 10,
+      };
     },
   },
   beforeUnmount() {
@@ -287,5 +320,10 @@ export default {
   text-align: center;
   padding: 20px;
   font-weight: bold;
+}
+
+.emoji-picker {
+  position: absolute;
+  z-index: 1000;
 }
 </style>

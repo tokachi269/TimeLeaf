@@ -77,7 +77,7 @@ def oauth_redirect():
         "code": code,
         "redirect_uri":request.headers.get('referer')
     }
-
+    print(request.headers.get('referer'))
     response = requests.get(url, params=params, headers=headers)
 
     if response.status_code == 200:
