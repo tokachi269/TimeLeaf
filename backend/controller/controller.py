@@ -73,17 +73,19 @@ def oauth_redirect():
         'Content-Type': 'application/x-www-form-urlencoded'
     }
     referer = request.headers.get('referer')
-    
+
     if referer:
         parsed_referer = urlparse(referer)
+        scheme = parsed_referer.scheme
         domain = parsed_referer.netloc
-        print(f"Referer domain: {domain}")
+        full_url = f"{scheme}://{domain}"
+        print(f"Referer URL: {full_url}")
 
     params={
         "client_id": SLACK_CLIENT_ID,
         "client_secret": SLACK_CLIENT_SECRET,
         "code": code,
-        "redirect_uri":domain
+        "redirect_uri":full_url
     }
     print(request.headers.get('referer'))
     response = requests.get(url, params=params, headers=headers)
