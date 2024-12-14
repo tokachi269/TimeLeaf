@@ -269,7 +269,7 @@ def get_slack_users_profile():
         return jsonify({"error": "Failed to fetch profile"}), 500
 
 @controller_bp.route('/v1/slack/reactions/insert', methods=['POST'])
-def get_slack_users_profile():
+def get_slack_reactions_insert():
     token = request.headers.get('authorization')
     channelId = request.args.get("channelId")
     name = request.args.get("name")
@@ -291,10 +291,10 @@ def get_slack_users_profile():
         else:
             return jsonify(), 400
     else:
-        return jsonify({"error": "Failed to fetch profile"}), 500
+        return jsonify({"error": "Failed to set reaction"}), 500
 
 @controller_bp.route('/v1/slack/reactions/delete', methods=['POST'])
-def get_slack_users_profile():
+def get_slack_reactions_delete():
     token = request.headers.get('authorization')
     channelId = request.args.get("channelId")
     name = request.args.get("name")
@@ -316,7 +316,7 @@ def get_slack_users_profile():
         else:
             return jsonify(), 400
     else:
-        return jsonify({"error": "Failed to fetch profile"}), 500
+        return jsonify({"error": "Failed to delete reaction"}), 500
  
 @controller_bp.route('/v1/slack/image', methods=['GET'])
 def get_image():
