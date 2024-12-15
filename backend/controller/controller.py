@@ -94,23 +94,19 @@ def oauth_redirect():
         res = response.json() 
         print(res)
         if res.get("ok"):
-            
             print(res.get("authed_user").get('access_token'))
-            print(user_cache)
-            print(res.get("authed_user").get('id'))
-
             user_cache[res.get("authed_user").get('id')]
             # user_cache からユーザー名を取得。存在しない場合は user_id のまま
-            user_name = ""
+            user_info = ""
             for user in user_cache:
                 if user["id"] == res.get("authed_user").get('id'):
-                    user_name = user["profile"].get("display_name", user["profile"].get("real_name", "Unknown User"))
+                    user_info = user["profile"]
                     break
 
             return jsonify({"token":res.get("authed_user").get('access_token'),
                             "scope":res.get("authed_user").get('scope'),
-                            "id":res.get("authed_user").get('id'),
-                            "name":user_name,
+                            "id":user_info.get('id'),
+                            "name":user_info.get('display_name'),
                             "team":res.get("team").get('name')}), 200
         else:
             return jsonify(response.json()), 400
