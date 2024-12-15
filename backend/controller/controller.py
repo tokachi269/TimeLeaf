@@ -68,6 +68,7 @@ def update_reaction_cache():
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
         res = response.json() 
+        print(res)
         if response.json().get("ok"):
             reaction_array = []
             for key, value in res.get("emoji"):
