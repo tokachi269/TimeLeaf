@@ -29,8 +29,12 @@ authorize_url_generator = AuthorizeUrlGenerator(
     scopes=["channels:history", "channels:read"]
 )
 user_cache = []
-last_update = 0
-CACHE_DURATION = 86400  # 1日（秒単位）
+last_user_update = 0
+USER_CACHE_DURATION = 86400  # 1日（秒単位）
+
+reaction_cache = []
+last_reaction_update = 0
+REACTION_CACHE_DURATION = 1800  # 30分（秒単位）
 
 def update_user_cache():
     url = "https://slack.com/api/users.list"
@@ -38,13 +42,13 @@ def update_user_cache():
         "Authorization": f"Bearer {SLACK_BOT_TOKEN}",
     }
     global user_cache
-    global last_update
+    global last_user_update
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
         res = response.json() 
         if response.json().get("ok"):
             user_cache = res["members"]
-            last_update = time.time()
+            last_user_update = time.time()
             print(user_cache)
         else:
             print(res)
@@ -54,11 +58,47 @@ def update_user_cache():
 # 起動時にキャッシュを更新
 update_user_cache()
 
+def update_reaction_cache():
+    token = request.headers.get('authorization')
+    print(token)
+    url = "https://slack.com/api/emoji.list"
+    headers = {
+        "Authorization": f"Bearer {SLACK_BOT_TOKEN}",
+    }
+    global reaction_cache
+    global last_user_update
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        res = response.json() 
+        if response.json().get("ok"):
+            reaction_array = []
+            for key, value in res.get("emoji"):
+                reaction_object = {
+                    "id": key,
+                    "name": key,
+                    "colons": f":{key}:",
+                    "text": "",
+                    "emoticons": [],
+                    "custom": True,
+                    "imageUrl": value
+                }
+                reaction_array.append(reaction_object)
+
+            reaction_cache = reaction_array
+            last_user_update = time.time()
+            print(reaction_cache)
+        else:
+            print(res)
+    else:
+        return jsonify({"error": "Failed to fetch update_user_cache"}), 500
+
+# 起動時にキャッシュを更新
+update_reaction_cache()
+
 @controller_bp.route("/v1/getAccessToken", methods=['GET'])
 def oauth_redirect():
     code = request.args.get("code")
     token = request.headers.get('authorization')
-    print( request.headers.get('referer'))
     if not (code or token):
         print("Both code and token are empty")
         return jsonify({"error": "Both code and token are empty"}), 400
@@ -92,7 +132,6 @@ def oauth_redirect():
 
     if response.status_code == 200:
         res = response.json() 
-        print(res)
         if res.get("ok"):
             print(res.get("authed_user").get('access_token'))
             # user_cache からユーザー名を取得。存在しない場合は user_id のまま
@@ -101,8 +140,6 @@ def oauth_redirect():
                 if user["id"] == res.get("authed_user").get('id'):
                     user_info = user["profile"]
                     break
-            print(user_info)
-
             return jsonify({"token":res.get("authed_user").get('access_token'),
                             "scope":res.get("authed_user").get('scope'),
                             "id":res.get("authed_user").get('id'),
@@ -158,9 +195,9 @@ def get_slack_message_replies():
     channel = request.args.get("channel")
     ts = request.args.get("ts")
     global user_cache
-    global last_update
+    global last_user_update
     # キャッシュが古い場合は更新
-    if time.time() - last_update > CACHE_DURATION:
+    if time.time() - last_user_update > USER_CACHE_DURATION:
         update_user_cache()
 
     url = "https://slack.com/api/conversations.replies"
@@ -235,7 +272,32 @@ def get_slack_times_channels():
 
 
 @controller_bp.route('/v1/slack/emojis', methods=['GET'])
-def get_slack_reactions():
+def get_slack_reactions_v2():
+    token = request.headers.get('authorization')
+    print(token)
+    global reaction_cache
+    global last_reaction_update
+    # キャッシュが古い場合は更新
+    if time.time() - last_user_update > USER_CACHE_DURATION:
+        update_reaction_cache()
+    url = "https://slack.com/api/emoji.list"
+    headers = {
+        "Authorization": token,
+    }
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        res = response.json() 
+        if response.json().get("ok"):
+            emojis = jsonify(res.get("emoji"))
+            emojis.headers['Cache-Control'] = 'public, max-age=1800'
+            return emojis
+        else:
+            return jsonify(res)
+    else:
+        return jsonify({"error": "Failed to fetch emoji"}), 500
+    
+@controller_bp.route('/v2/slack/emojis', methods=['GET'])
+def get_slack_reactions_v2():
     token = request.headers.get('authorization')
     print(token)
     url = "https://slack.com/api/emoji.list"
@@ -253,7 +315,7 @@ def get_slack_reactions():
             return jsonify(res)
     else:
         return jsonify({"error": "Failed to fetch emoji"}), 500
-    
+
 @controller_bp.route('/v1/slack/users/profile', methods=['GET'])
 def get_slack_users_profile():
     token = request.headers.get('authorization')
@@ -298,7 +360,7 @@ def get_slack_reactions_insert():
     if response.status_code == 200:
         res = response.json() 
         if response.json().get("ok"):
-            return jsonify(), 200
+            return 200
         else:
             return jsonify(res), 400
     else:
@@ -324,7 +386,7 @@ def get_slack_reactions_delete():
     if response.status_code == 200:
         res = response.json() 
         if response.json().get("ok"):
-            return jsonify(), 200
+            return 200
         else:
             return jsonify(res), 400
     else:
