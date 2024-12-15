@@ -59,8 +59,6 @@ def update_user_cache():
 update_user_cache()
 
 def update_reaction_cache():
-    token = request.headers.get('authorization')
-    print(token)
     url = "https://slack.com/api/emoji.list"
     headers = {
         "Authorization": f"Bearer {SLACK_BOT_TOKEN}",
