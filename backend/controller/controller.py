@@ -102,6 +102,7 @@ def oauth_redirect():
                 if user["id"] == res.get("authed_user").get('id'):
                     user_info = user["profile"]
                     break
+            print(user_info)
 
             return jsonify({"token":res.get("authed_user").get('access_token'),
                             "scope":res.get("authed_user").get('scope'),
