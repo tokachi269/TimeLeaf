@@ -286,10 +286,11 @@ def get_slack_reactions_insert():
     }
     response = requests.get(url, headers=headers, params=params)
     if response.status_code == 200:
+        res = response.json() 
         if response.json().get("ok"):
             return jsonify(), 200
         else:
-            return jsonify(), 400
+            return jsonify(res), 400
     else:
         return jsonify({"error": "Failed to set reaction"}), 500
 
