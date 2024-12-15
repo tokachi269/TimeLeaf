@@ -95,8 +95,18 @@ def oauth_redirect():
         print(res)
         if res.get("ok"):
             print(res.get("authed_user").get('access_token'))
+            user_cache[res.get("authed_user").get('id')]
+            # user_cache からユーザー名を取得。存在しない場合は user_id のまま
+            user_name = ""
+            for user in user_cache:
+                if user["id"] == res.get("authed_user").get('id'):
+                    user_name = user["profile"].get("display_name", user["profile"].get("real_name", "Unknown User"))
+                    break
+
             return jsonify({"token":res.get("authed_user").get('access_token'),
                             "scope":res.get("authed_user").get('scope'),
+                            "id":res.get("authed_user").get('id'),
+                            "name":user_name,
                             "team":res.get("team").get('name')}), 200
         else:
             return jsonify(response.json()), 400
@@ -312,10 +322,11 @@ def get_slack_reactions_delete():
     }
     response = requests.get(url, headers=headers, params=params)
     if response.status_code == 200:
+        res = response.json() 
         if response.json().get("ok"):
             return jsonify(), 200
         else:
-            return jsonify(), 400
+            return jsonify(res), 400
     else:
         return jsonify({"error": "Failed to delete reaction"}), 500
  
