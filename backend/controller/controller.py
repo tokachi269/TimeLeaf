@@ -105,7 +105,7 @@ def oauth_redirect():
 
             return jsonify({"token":res.get("authed_user").get('access_token'),
                             "scope":res.get("authed_user").get('scope'),
-                            "id":user_info.get('id'),
+                            "id":res.get("authed_user").get('id'),
                             "name":user_info.get('display_name'),
                             "team":res.get("team").get('name')}), 200
         else:
