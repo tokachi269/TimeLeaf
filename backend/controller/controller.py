@@ -270,7 +270,7 @@ def get_slack_times_channels():
 
 
 @controller_bp.route('/v1/slack/emojis', methods=['GET'])
-def get_slack_reactions_v2():
+def get_slack_reactions_v1():
     token = request.headers.get('authorization')
     print(token)
     global reaction_cache
