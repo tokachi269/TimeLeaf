@@ -94,7 +94,11 @@ def oauth_redirect():
         res = response.json() 
         print(res)
         if res.get("ok"):
+            
             print(res.get("authed_user").get('access_token'))
+            print(user_cache)
+            print(res.get("authed_user").get('id'))
+
             user_cache[res.get("authed_user").get('id')]
             # user_cache からユーザー名を取得。存在しない場合は user_id のまま
             user_name = ""
