@@ -71,7 +71,7 @@ def update_reaction_cache():
         print(res)
         if response.json().get("ok"):
             reaction_array = []
-            for key, value in res.get("emoji"):
+            for key, value in res.get("emoji").items():
                 reaction_object = {
                     "id": key,
                     "name": key,
