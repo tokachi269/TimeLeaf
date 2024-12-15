@@ -95,7 +95,6 @@ def oauth_redirect():
         print(res)
         if res.get("ok"):
             print(res.get("authed_user").get('access_token'))
-            user_cache[res.get("authed_user").get('id')]
             # user_cache からユーザー名を取得。存在しない場合は user_id のまま
             user_info = ""
             for user in user_cache:
