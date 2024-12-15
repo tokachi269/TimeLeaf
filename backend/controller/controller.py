@@ -273,11 +273,7 @@ def get_slack_times_channels():
 def get_slack_reactions_v1():
     token = request.headers.get('authorization')
     print(token)
-    global reaction_cache
-    global last_reaction_update
-    # キャッシュが古い場合は更新
-    if time.time() - last_user_update > USER_CACHE_DURATION:
-        update_reaction_cache()
+
     url = "https://slack.com/api/emoji.list"
     headers = {
         "Authorization": token,
@@ -298,19 +294,14 @@ def get_slack_reactions_v1():
 def get_slack_reactions_v2():
     token = request.headers.get('authorization')
     print(token)
-    url = "https://slack.com/api/emoji.list"
-    headers = {
-        "Authorization": token,
-    }
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        res = response.json() 
-        if response.json().get("ok"):
-            emojis = jsonify(res.get("emoji"))
-            emojis.headers['Cache-Control'] = 'public, max-age=1800'
-            return emojis
-        else:
-            return jsonify(res)
+    global reaction_cache
+    global last_reaction_update
+    # キャッシュが古い場合は更新
+    if time.time() - last_user_update > USER_CACHE_DURATION:
+        update_reaction_cache()
+
+    if reaction_cache:
+        return jsonify(reaction_cache)
     else:
         return jsonify({"error": "Failed to fetch emoji"}), 500
 
