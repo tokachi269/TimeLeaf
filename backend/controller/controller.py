@@ -385,7 +385,7 @@ def get_slack_reactions_delete():
 @controller_bp.route('/v1/slack/image', methods=['GET'])
 def get_image():
     token = request.headers.get('authorization')
-    if token:
+    if not token:
         token = f"Bearer {request.cookies.get('token')}"
     print(token)
     url = request.args.get("url")
