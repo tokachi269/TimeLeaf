@@ -301,7 +301,7 @@ def get_slack_reactions_v2():
     global reaction_cache
     global last_reaction_update
     # キャッシュが古い場合は更新
-    if time.time() - last_user_update > USER_CACHE_DURATION:
+    if time.time() - last_reaction_update > REACTION_CACHE_DURATION:
         update_reaction_cache()
 
     if reaction_cache:
