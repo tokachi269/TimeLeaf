@@ -9,7 +9,7 @@
     <!-- 絵文字ピッカー -->
     <div v-if="showEmojiPicker" :style="{ top: pickerPosition.top + 'px', left: pickerPosition.left + 'px' }"
       class="emoji-picker modal">
-      <Picker :data="emojiIndex" set="google" title="サーバー絵文字は現在未実装です" @select="selectReaction" />
+      <Picker :data="emojiIndex" set="google" @select="selectReaction" />
     </div>
     <!-- タイムラインカード -->
     <TimelineCard v-for="post in posts" :key="post.id" :post="post" :accessToken="accessToken" :emojiMap="emojiMap"
@@ -212,7 +212,7 @@ export default {
                 // emojiMap から画像URLを取得し、該当する画像タグに変換
                 const emoji = this.emojiMap.find(e => e.name === emojiName);
                 if (emoji) {
-                  return `<img src="${emoji.imageUrl}" alt="${emoji.name}" class="emoji-image">`;
+                  return `<img src="${emoji.imageUrl}" alt="${emoji.name}" class="emoji-image" oncontextmenu="return false;" ondragstart="return false;" >`;
                 }
 
                 // emojiMapに存在しない場合、unicodeEmojisで検索
