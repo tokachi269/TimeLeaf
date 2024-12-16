@@ -81,6 +81,8 @@ def update_reaction_cache():
                     "colons": f":{key}:",
                     "text": "",
                     "emoticons": [],
+                    "short_names": [key],
+                    "keywords": [key],
                     "custom": True,
                     "imageUrl": value
                 }
