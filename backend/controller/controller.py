@@ -68,12 +68,8 @@ def update_reaction_cache():
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
         res = response.json() 
-        print(res)
         if response.json().get("ok"):
             reaction_array = []
-            em = res.get("emoji")
-            print(f"emoji_data type: {type(em)}")  # emoji_dataの型をログに出力
-
             for key, value in res.get("emoji").items():
                 reaction_object = {
                     "id": key,
@@ -90,7 +86,6 @@ def update_reaction_cache():
 
             reaction_cache = reaction_array
             last_user_update = time.time()
-            print(reaction_cache)
         else:
             print(res)
     else:

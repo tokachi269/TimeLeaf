@@ -6,14 +6,14 @@
       <button :class="{ 'active': isFollowing }" @click="toggleTimeline(true)">フォロー中</button>
     </div>
 
-    <!-- Emoji Picker -->
+    <!-- 絵文字ピッカー -->
     <div v-if="showEmojiPicker" :style="{ top: pickerPosition.top + 'px', left: pickerPosition.left + 'px' }"
-      class="emoji-picker">
-      <Picker :data="emojiIndex" set="google" @select="addReaction" />
+      class="emoji-picker modal">
+      <Picker :data="emojiIndex" set="google" title="サーバー絵文字は現在未実装です" @select="selectReaction" />
     </div>
-    <!-- タイムラインカードの表示 -->
+    <!-- タイムラインカード -->
     <TimelineCard v-for="post in posts" :key="post.id" :post="post" :accessToken="accessToken" :emojiMap="emojiMap"
-      @open-picker="handleOpenPicker" />
+      @open-picker="handleOpenPicker" @add-reaction="handleOpenPicker" ref="timelineCards" />
     <!-- フォロー中のチャンネルがない場合のメッセージ -->
     <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
 
@@ -38,6 +38,14 @@ export default {
     accessToken: {
       type: String,
       required: true
+    },
+    accessedName: {
+      type: String,
+      required: true
+    },
+    accessedId: {
+      type: String,
+      required: true
     }
   },
   data() {
@@ -51,11 +59,13 @@ export default {
       errorMessage: '', // エラーメッセージを格納する変数
       showEmojiPicker: false,
       selectedPostId: null,
-      emojiIndex: new EmojiIndex(data),
+      emojiIndex: null,
       pickerPosition: {
         top: 0, // Pickerの高さを考慮して調整
         left: 0
       }, // Pickerのスタイルを格納する変数
+      isScrolling: false,
+      isTapped: false, // タップ状態を管理
     }
   },
   provide() {
@@ -68,8 +78,34 @@ export default {
       return this.emojiMap || [];
     },
   },
+  watch: {
+    showEmojiPicker(newVal) {
+      if (newVal) {
+        setTimeout(() => {
+          window.addEventListener("touchstart", this.closeEmojiPickerOnTapOrClick);
+          window.addEventListener("click", this.closeEmojiPickerOnTapOrClick);
+        }, 0);
+      } else {
+        window.removeEventListener("touchstart", this.closeEmojiPickerOnTapOrClick);
+        window.removeEventListener("click", this.closeEmojiPickerOnTapOrClick);
+      }
+    }
+  },
   async mounted() {
     this.init();
+    window.addEventListener("resize", this.checkHeight); // imageGalleryのサイズ変更(画像が呼び込まれた)検知
+    window.addEventListener("scroll", this.onScroll); // スクロール検知
+    // タップイベントリスナー (スマホ)
+  },
+  beforeUnmount() {
+    window.removeEventListener("resize", this.checkHeight);
+    window.removeEventListener("scroll", this.onScroll);
+
+    // タップイベントリスナー (スマホ)
+    window.removeEventListener("touchstart", this.closeEmojiPickerOnTapOrClick);
+    window.removeEventListener("click", this.closeEmojiPickerOnTapOrClick);
+
+    if (this.observer) this.observer.disconnect()
   },
   methods: {
     async init() {
@@ -134,7 +170,7 @@ export default {
       console.log("channelMap:", channels);
 
       // FlaskサーバーからSlacke絵文字を取得
-      const emojis = await fetch(`${API_BASE_URL}/api/v1/slack/emojis`, {
+      const emojis = await fetch(`${API_BASE_URL}/api/v2/slack/emojis`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${this.accessToken}`
@@ -148,6 +184,7 @@ export default {
         console.error('Error fetching data:', error);
       });
       this.emojiMap = emojis;
+      this.emojiIndex = new EmojiIndex(data, { custom: emojis })
       console.log("emojiMap:", this.emojiMap);
       // フォロー中のチャンネルがない場合
       if (this.isFollowing && channels.followed_channels.length === 0) {
@@ -173,13 +210,13 @@ export default {
               // メッセージ内容に含まれる絵文字コードを画像URLまたはUnicodeに変換
               let formattedContent = msg.text.replace(/:([^\s:]+):/g, (match, emojiName) => {
                 // emojiMap から画像URLを取得し、該当する画像タグに変換
-                const emojiUrl = emojis[emojiName];
-                if (emojiUrl) {
-                  return `<img src="${emojiUrl}" alt="${emojiName}" class="emoji-image">`;
+                const emoji = this.emojiMap.find(e => e.name === emojiName);
+                if (emoji) {
+                  return `<img src="${emoji.imageUrl}" alt="${emoji.name}" class="emoji-image">`;
                 }
 
                 // emojiMapに存在しない場合、unicodeEmojisで検索
-                const unicodeEmoji = unicodeEmojis.find(emoji => emoji.short_name === emojiName);
+                const unicodeEmoji = unicodeEmojis.find(emoji => emoji?.short_name === emojiName);
                 if (unicodeEmoji) {
                   return `<span class="emoji-image">${this.convertToHtmlEntity(unicodeEmoji.unified)}</span>`;  // Unicode絵文字を返す
                 }
@@ -190,12 +227,15 @@ export default {
               // チャンネルの創設者と と メッセージのuserIDが一致するかをチェック
               const channel = channels.followed_channels.find(channel => channel.id === msg.channel.id);
               const isMaster = channel ? channel.creator === msg.user : false;
+              formattedContent = formattedContent.replace(/\n/g, '<br>');
 
               // 正規表現でマッチ
-              formattedContent = formattedContent.replace(/<@(\w+)\s*\|([^\\>]+)>/g, (_, id, name) => {
+              formattedContent = this.replaceHtmlTag(formattedContent.replace(/<@(\w+)\s*\|([^\\>]+)>/g, (_, id, name) => {
                 return `<span class="mention" data-id="${id}">@${name}</span>`;
-              });
+              }));
               return {
+                accessedName: this.accessedName,
+                accessedId: this.accessedId,
                 id: (this.page - 1) * 20 + i + 1,
                 ts: msg.ts,
                 userId: msg.user,
@@ -225,6 +265,24 @@ export default {
         }
       }
     },
+    replaceHtmlTag(content) {
+      // 正規表現: URL単体またはラベル付きURLにマッチ
+      const pattern = /<(https?:\/\/[^|>]+)\|([^>]+)>|<(https?:\/\/[^>]+)>/g;
+
+      // コールバック関数で置換処理
+      return content.replace(pattern, (match, url1, label1, url2) => {
+        // URLとラベルを選択
+        const url = url1 || url2; // URLをキャプチャ
+        const label = label1 || url; // ラベルがなければURLをそのまま使用
+
+        // URLまたはラベルが取得できなければ元の文字列を返す
+        if (!url) {
+          return match; // マッチした元の文字列をそのまま返す
+        }
+
+        return `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+      });
+    },
     // インフィニットスクロールの設定
     initIntersectionObserver() {
       //スクロールしたら自動ロード
@@ -251,9 +309,36 @@ export default {
       const parts = value.split(`; ${name}=`);
       if (parts.length === 2) return parts.pop().split(';').shift();
     },
-    showEmoji(emoji) {
+    onScroll() {
+      // ユーザーポップアップが表示されている場合は閉じる
+      this.isScrolling = true;
+      if (this.showEmojiPicker) {
+        this.showEmojiPicker = false;
+      }
+      // 100ms 後にスクロールが止まったと判断
+      clearTimeout(this.scrollTimeout);
+      this.scrollTimeout = setTimeout(() => {
+        this.isScrolling = false;
+      }, 100);
+    },
+    closeEmojiPickerOnTapOrClick(event) {
+      console.log("closeEmojiPickerOnTapOrClick called");
+
+      // 絵文字ピッカーが表示されている場合にタップまたはクリックを検知して閉じる
+      if (this.showEmojiPicker) {
+        const pickerElement = this.$el.querySelector('.emoji-picker');
+        if (pickerElement && !pickerElement.contains(event.target)) {
+          this.showEmojiPicker = false;
+        }
+      }
+    },
+    selectReaction(emoji) {
       this.emojisOutput = this.emojisOutput + emoji.native;
       this.showEmojiPicker = false;
+      console.log(this.selectedPostId);
+      // カードのコンポーネントを取得して絵文字を送信
+      const card = this.$refs.timelineCards.find(card => card.localPost.ts === this.selectedPostId);
+      card.handleEmojiSelected(emoji);
     },
     handleOpenPicker(ts, event) {
       this.selectedPostId = ts;
@@ -263,15 +348,24 @@ export default {
       const rect = targetElement.getBoundingClientRect();
 
       // Pickerの位置を設定
-      this.pickerStyle = {
-        top: rect.bottom + 10,
-        left: rect.left - 10,
+      this.pickerPosition = {
+        top: rect.bottom + window.scrollY + 10, // スクロール量を考慮
       };
+
+      // 画面からはみ出ないように調整
+      const pickerHeight = 420; // 絵文字ピッカーの高さ
+      const pickerWidth = 355; // 絵文字ピッカーの幅
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+
+      if (this.pickerPosition.left + pickerWidth > viewportWidth) {
+        this.pickerPosition.left = viewportWidth - pickerWidth - 10;
+      }
+      if (this.pickerPosition.top + pickerHeight > viewportHeight) {
+        this.pickerPosition.top = viewportHeight - pickerHeight - 10;
+      }
     },
   },
-  beforeUnmount() {
-    if (this.observer) this.observer.disconnect()
-  }
 }
 </script>
 
@@ -295,7 +389,7 @@ export default {
 }
 
 .timeline-toggle button.active {
-  background-color: #94ca68;
+  background-color: rgb(148, 202, 104);
   color: white;
   font-weight: bold;
 }
@@ -325,5 +419,19 @@ export default {
 .emoji-picker {
   position: absolute;
   z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* 中央揃え */
+}
+
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  z-index: 9999;
 }
 </style>

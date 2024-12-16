@@ -2,7 +2,11 @@
   <div id="app">
     <img alt="Vue logo" src="./assets/logo.png" class="logo" />
     <Header v-if="team != ''" :msg="headerMessage" />
-    <TimelineView v-if="!invalidToken" :accessToken="accessToken" />
+    <TimelineView v-if="!invalidToken" :accessToken="accessToken" :accessedId="id" :accessedName="name" />
+    <br>
+    <br>
+    <!-- フォロー中のチャンネルがない場合のメッセージ -->
+    <div v-if="errorMessage" class="error-message"  v-html="errorMessage"></div>
   </div>
 </template>
 
@@ -24,6 +28,10 @@ export default {
       accessToken: null,
       invalidToken: true,
       team: "",
+      errorMessage: "",
+      id: "",
+      name: "",
+      scope: "",
     }
   },
   setup(props, { emit }) {
@@ -65,6 +73,9 @@ export default {
       //console.log('AccessToken received in TimelineView:', this.accessToken);
       // アプリ起動時にCookieをチェック
       this.accessToken = this.getCookie('token');
+      this.id = this.getCookie('id');
+      this.name = this.getCookie('name');
+      this.scope = this.getCookie('scope');
       await this.fetchAccessToken();
     },
     async fetchAccessToken() {
@@ -95,6 +106,12 @@ export default {
               if (data.scope) {
                 document.cookie = `scope=${data.scope}; expires=${new Date().setMonth(new Date().getMonth() + 1)}; path=/; SameSite=None; Secure`;
               }
+              if (data.id) {
+                this.id = data.id;
+                this.name = data.name;
+                document.cookie = `id=${data.id}; expires=${new Date().setMonth(new Date().getMonth() + 1)}; path=/; SameSite=None; Secure`;
+                document.cookie = `name=${data.name}; expires=${new Date().setMonth(new Date().getMonth() + 1)}; path=/; SameSite=None; Secure`;
+              }
               this.invalidToken = false;
               this.removeUrlParams(); // パスパラメーターを削除
             }
@@ -105,10 +122,14 @@ export default {
           }
         } else if (response.status == 400) {
           //tokenが失行している場合cookieから削除してリダイレクト
-          document.cookie = `token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=None; Secure`;
-          document.cookie = `scope=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=None; Secure`;
-          this.redirect();
-          return;
+          if (response.type != "cors") {
+            document.cookie = `id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=None; Secure`;
+            document.cookie = `token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=None; Secure`;
+            document.cookie = `scope=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=None; Secure`;
+            document.cookie = `name=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=None; Secure`;
+            this.redirect();
+            return;
+          }
         }
         console.error(`リクエストに失敗しました。ステータスコード: ${response.status}`);
 
@@ -116,6 +137,8 @@ export default {
         console.error('エラーが発生しました:', error);
         this.invalidToken = true;
       }
+      this.errorMessage = `トークンの取得中にエラーが発生しました...<br>
+      しばらく経ってから再度アクセスしてください。`;
     },
     getCookie(name) {
       const value = `; ${document.cookie}`;
@@ -137,6 +160,7 @@ export default {
         "users.profile:read",
         "files:read",
         "channels:history",
+        "reactions:write",
       ];
 
       // 配列をカンマ区切りの文字列に変換

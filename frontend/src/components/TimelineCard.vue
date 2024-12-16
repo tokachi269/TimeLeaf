@@ -12,7 +12,7 @@
     <div class="content-wrapper">
       <div class="empty-space"></div>
       <div class="content-area">
-        <div class="content" v-html="formattedContent"></div>
+        <div class="content" v-html="localPost.content"></div>
         <div v-if="thumbnailHtml" class="url-preview-container" v-html="thumbnailHtml"></div> <!-- サムネイル表示 -->
         <div v-if="hasImage">
           <div ref="imageGallery" class="image-gallery" :class="[setGalleryClass, { 'expanded': isExpanded }]">
@@ -29,9 +29,15 @@
         </div>
         <div class="reaction-list">
           <div v-for="reaction in reactions" :key="reaction.name" class="reaction-item"
-            @mouseenter="showUserList(reaction.name, $event)" @mouseleave="hideUserList">
+            :class="{ 'highlight': checkHighlight(reaction) }" @mouseenter="showUserList(reaction.name, $event)"
+            @mouseleave="hideUserList" @click="insertOrDeleteReaction(reaction.name, true)"
+            @mousedown="handleReactionMouseDown(reaction.name, $event)" @mouseup="handleReactionMouseUp"
+            @touchstart="handleReactionMouseDown(reaction.name, $event)" @touchend="handleReactionMouseUp">
             <span v-html="getEmojiForReaction(reaction.name)"></span>
             <span class="reaction-count">{{ reaction.count }}</span>
+          </div>
+          <div v-if="reactions.length != 0" @click="openEmojiPicker($event)" class="reaction-item"> <img
+              src="./../assets/emoji-add.png" alt="Add Reaction" class="emoji-image">
           </div>
 
           <!-- ユーザーポップアップ -->
@@ -46,7 +52,13 @@
             </ul>
           </div>
         </div>
-        <span class="date">{{ post.date }}</span>
+        <div class="detail-list">
+          <div v-if="reactions.length == 0" @click="openEmojiPicker($event)" class="add-reaction-image">
+            <img src="./../assets/emoji-add.png" alt="Add Reaction" class="emoji-image">
+          </div>
+
+          <span class="date">{{ post.date }}</span>
+        </div>
       </div>
     </div>
   </div>
@@ -56,6 +68,7 @@
 import { toRaw } from 'vue';
 import { nextTick } from 'vue';
 import { API_BASE_URL } from '@/config.js';
+import emitter from '@/eventBus';
 
 export default {
   props: {
@@ -100,9 +113,12 @@ export default {
   inject: {
     unicodeEmojis: { default: [] },
   },
+  created() {
+    // 親コンポーネントから絵文字を受け取るイベントをリスン
+    emitter.on('emoji-selected', this.handleEmojiSelected);
+  },
   async mounted() {
     this.profile = this.fetchUserProfile();
-    this.thumbnailHtml = this.extractThumbnail();
     // 画像ファイルの URL を取得
     if (this.post.files) {
       for (const file of this.post.files) {
@@ -130,6 +146,8 @@ export default {
     if (this.isTouchDevice) {
       window.addEventListener("touchstart", this.onTap);
     }
+    this.extractThumbnail();
+
     this.fetchReplies();
   },
   beforeUnmount() {
@@ -142,19 +160,6 @@ export default {
     }
   },
   computed: {
-    formattedContent() {
-      // テキスト内のURLを見つけ、サムネイルとタイトルを取得
-      const urlRegex = /<(https?:\/\/[^\s]+)>/g;  // URL検出用の正規表現
-      let formatted = this.localPost.content.replace(/\n/g, '<br>');
-
-      formatted = formatted.replace(urlRegex, (match, urls) => {
-        let url = urls.split("|")[0];
-        return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
-      });
-
-      return formatted;
-    },
-
     visibleImages() {
       // 表示する画像の数を決定
       return this.isExpanded ? this.images : this.images.slice(0, 4);
@@ -178,6 +183,16 @@ export default {
     },
   },
   methods: {
+    handleReactionMouseDown(reactionName, event) {
+      // 長押しを検知するためのタイマーを設定
+      this.reactionTimeout = setTimeout(() => {
+        this.showUserList(reactionName, event);
+      }, 500); // 500ms以上押された場合にユーザーリストを表示
+    },
+    handleReactionMouseUp() {
+      // マウスボタンが離されたときにタイマーをクリア
+      clearTimeout(this.reactionTimeout);
+    },
     async fetchUserProfile() {
       try {
         // Flaskサーバーからprofileを取得
@@ -233,8 +248,8 @@ export default {
       }
     },
     extractThumbnail() {
-      if (this.post.attachments && this.post.attachments.length > 0) {
-        const attachment = this.post.attachments[0]; // 最初の添付情報を取得
+      if (this.localPost.thumbnailHtmls && this.localPost.thumbnailHtmls.length > 0) {
+        const attachment = this.localPost.thumbnailHtmls[0]; // 最初の添付情報を取得
         if (attachment.image_url && attachment.title && attachment.title_link) {
           // サムネイル用HTMLを作成
           this.thumbnailHtml = `
@@ -245,7 +260,6 @@ export default {
               </div>
             </div>
           `;
-          console.log(this.thumbnailHtml);
         }
       }
     },
@@ -318,10 +332,9 @@ export default {
     getEmojiForReaction(reactionName) {
       if (!reactionName) return
 
-      const emojiUrl = this.emojiMap[reactionName];
-      if (emojiUrl) {
-        // カスタム絵文字の場合
-        return `<img src="${emojiUrl}" alt="${reactionName}" class="emoji-image">`;
+      const emoji = this.emojiMap?.find(e => e.name === reactionName);
+      if (emoji) {
+        return `<img src="${emoji.imageUrl}" alt="${emoji.name}" class="emoji-image">`;
       }
 
       // Unicode 絵文字の場合
@@ -357,6 +370,10 @@ export default {
 
         // ホバーした要素の位置を取得
         const targetElement = event.currentTarget;
+        if (!targetElement) {
+          console.error('targetElement is null');
+          return;
+        }
         const rect = targetElement.getBoundingClientRect();
 
         // ポップアップの位置を設定（要素の直下に表示）
@@ -370,6 +387,119 @@ export default {
     hideUserList() {
       this.isUserListVisible = false;
       this.hoveredUsers = [];
+    },
+    openEmojiPicker(event) {
+      // 絵文字ピッカーを開く(親コンポーネント呼び出し)
+      this.$emit('open-picker', this.localPost.ts, event);
+    },
+    handleEmojiSelected(emoji) {
+      console.log('Selected emoji:', emoji);
+      //絵文字ピッカーで選択された絵文字をハンドルし、リアクションを追加または削除
+      this.insertOrDeleteReaction(emoji.short_name, false);
+    },
+    async insertOrDeleteReaction(name, needDelete) {
+      console.log('insertOrDeleteReaction emoji');
+      // 選択した絵文字がリアクション済みか確認
+      const reaction = this.existsReaction(name);
+      const isReacted = reaction?.users.some(user => user.id === this.localPost.accessedId);
+
+      if (isReacted && reaction) {
+        // リアクション済みの場合削除or何もしない
+        if (needDelete) {
+          await this.fetchDeleteReaction(name);
+          const index = this.reactions.findIndex(reaction => reaction.name === name);
+          if (reaction.count == 1) {
+            // リアクションのカウントが0人になったら削除
+            if (index !== -1) {
+              this.reactions.splice(index, 1);
+              this.isUserListVisible = false;
+            }
+          } else {
+            //リアクションのカウントが0人でなければユーザーのみ消す
+            reaction.count -= 1;
+            const userIndex = reaction.users.findIndex(user => user.id === this.localPost.accessedId);
+            if (userIndex !== -1) {
+              reaction.users.splice(userIndex, 1);
+            }
+            this.reactions[index] = reaction;
+          }
+        } else {
+          // 何もせずに返却
+          return;
+        }
+      } else {
+        // リアクション追加
+        // slackにリクエスト
+        const successedReactName = await this.fetchAddReaction(name);
+        if (successedReactName) {
+          //該当の絵文字が存在すれば既存のオブジェクトに追加し、なければ新規追加
+          const existingReaction = this.existsReaction(successedReactName);
+          if (existingReaction) {
+            existingReaction.count += 1;
+            existingReaction.users.push({ id: this.localPost.accessedId, name: this.localPost.accessedName });
+            const index = this.reactions.findIndex(reaction => reaction.name === name);
+            this.reactions[index] = reaction;
+          } else {
+            this.reactions.push({
+              "count": 1,
+              "name": successedReactName,
+              "users": [{ id: this.localPost.accessedId, name: this.localPost.accessedName }]
+            });
+          }
+        }
+      }
+    },
+    async fetchAddReaction(name) {
+      try {
+        // Flaskサーバーからprofileを取得
+        await fetch(`${API_BASE_URL}/api/v1/slack/reactions/insert?channelId=${this.localPost.channelId}&name=${name}&ts=${this.localPost.ts}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${toRaw(this.accessToken)}`
+          }
+        }).then(response => {
+          if (!response.ok) {
+            throw new Error('Network response was not ok');
+          }
+          return name;
+        }).catch(error => {
+          console.error('Error fetching data:', error);
+          return null;
+        });
+      } catch (error) {
+        console.error('Error fetching add reaction:', error);
+        return null;
+      }
+      return name;
+    },
+    async fetchDeleteReaction(name) {
+      try {
+        // Flaskサーバーからprofileを取得
+        await fetch(`${API_BASE_URL}/api/v1/slack/reactions/delete?channelId=${this.localPost.channelId}&name=${name}&ts=${this.localPost.ts}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${toRaw(this.accessToken)}`
+          }
+        }).then(response => {
+          if (!response.ok) {
+            throw new Error('Network response was not ok');
+          }
+          return name;
+        }).catch(error => {
+          console.error('Error fetching data:', error);
+          return null;
+        });
+      } catch (error) {
+        console.error('Error fetching delete reaction:', error);
+        return null;
+      }
+      return name;
+    },
+    existsReaction(name) {
+      return this.reactions.find(reaction => reaction?.name === name);
+    },
+    checkHighlight(reaction) {
+      return toRaw(reaction).users.some(user => user.id === this.localPost.accessedId);
     },
   }
 }
@@ -398,6 +528,11 @@ export default {
   font-size: 16px;
 }
 
+::v-deep .highlight {
+  background-color: rgba(175, 245, 115, 0.308) !important;
+  /* ハイライトのスタイル */
+}
+
 ::v-deep .emoji-image {
   /* v-deepをつけないとv-htmlで挿入したhtmlタグにcssが適用されない */
   display: inline-block;
@@ -407,6 +542,30 @@ export default {
   object-fit: contain;
   overflow-clip-margin: content-box;
   overflow: clip;
+}
+
+::v-deep .add-reaction-image {
+  /* v-deepをつけないとv-htmlで挿入したhtmlタグにcssが適用されない */
+  display: inline-block;
+  vertical-align: middle;
+  width: 1.5em;
+  height: 1.5em;
+  object-fit: contain;
+  overflow-clip-margin: content-box;
+  overflow: clip;
+}
+
+.add-reaction-image .emoji-image {
+  /* v-deepをつけないとv-htmlで挿入したhtmlタグにcssが適用されない */
+  width: 1.3em;
+  height: 1.3em;
+  opacity: 70%;
+}
+
+.add-reaction-image .emoji-image:hover {
+  /* 画像を1倍に拡大(=reaction-item内のemojiは拡大しない) */
+  transform: scale(1.2) !important;
+  animation: enlarge 0.2s ease forwards !important;
 }
 
 ::v-deep .emoji-image:hover {
@@ -522,6 +681,17 @@ export default {
   overflow-wrap: break-word;
   /* 改行を許可 */
   white-space: normal;
+}
+
+.detail-list {
+  display: flex;
+  /* 必要に応じて折り返し可能に */
+  flex-wrap: wrap;
+  /* アイテム間のスペース */
+  gap: 10px;
+  padding: 5px;
+  justify-content: flex-end;
+  align-items: center;
 }
 
 .date {
