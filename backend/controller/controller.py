@@ -387,13 +387,14 @@ def get_image():
     token = request.headers.get('authorization')
     if token is None:
         token = f"Bearer {request.cookies.get('token')}"
+    print(token)
     url = request.args.get("url")
     type = request.args.get("type")
     if not (url or type):
         return jsonify({"error": "Image URL is required"}), 400
     
     headers = {
-        "Authorization": token,
+        "Authorization": f"{token}",
     }
 
     response = requests.get(url, headers=headers)
