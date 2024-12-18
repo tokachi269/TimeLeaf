@@ -223,7 +223,7 @@ export default {
         // Flaskサーバーから画像を取得
         // Flaskを経由するのはAuthorizationヘッダーが必要なため。imgタグでヘッダー設定できない
         // 一度画像を取得して、imgタグではキャッシュを参照している
-        const url = `${API_BASE_URL}/api/v1/slack/image?url=${encodeURIComponent(init ? file.thumb_720 : file.url_private)}&type=${encodeURIComponent(file.mimetype)}`;
+        const url = `${API_BASE_URL}/api/v1/slack/image?url=${encodeURIComponent(init ? (file.thumb_720 ? file.thumb_720 : (file.thumb_480 ? file.thumb_480 : file.thumb_360)) : file.url_private)}&type=${encodeURIComponent(file.mimetype)}`;
         await fetch(url, {
           method: 'GET',
           headers: {
