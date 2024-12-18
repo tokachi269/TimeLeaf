@@ -68,6 +68,7 @@ export default {
       isScrolling: false,
       isTapped: false, // タップ状態を管理
       recentEmojis: ["shochi", "arigatougozaimasu", "yoroshikuonegaishimasu", "参加", "otsu", "すごい", "お大事に", "sumi", "さすが", "お疲れ様でした", "munen", "素敵", "yoros", "わくわく", "pikachu", "iine", "異議なし", "おめでとうございます"],//, "おつかれさま", "了解です"
+      urls: [],
     }
   },
   provide() {
@@ -237,6 +238,7 @@ export default {
               const channel = channels.followed_channels.find(channel => channel.id === msg.channel.id);
               const isMaster = channel ? channel.creator === msg.user : false;
               formattedContent = formattedContent.replace(/\n/g, '<br>');
+              this.urls = [];
 
               // 正規表現でマッチ
               formattedContent = this.replaceHtmlTag(formattedContent.replace(/<@(\w+)\s*\|([^\\>]+)>/g, (_, id, name) => {
@@ -256,6 +258,7 @@ export default {
                 content: formattedContent,  // メッセージ内容 (画像に変換済み)
                 thumbnailHtmls: msg.attachments,
                 files: msg.files,
+                urls: this.urls,
                 date: new Date(msg.ts * 1000).toLocaleString(), // タイムスタンプを日付に変換
               };
             });
@@ -288,7 +291,7 @@ export default {
         if (!url) {
           return match; // マッチした元の文字列をそのまま返す
         }
-
+        this.urls.push(url);
         return `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`;
       });
     },
