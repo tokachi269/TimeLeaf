@@ -334,7 +334,7 @@ export default {
 
       const emoji = this.emojiMap?.find(e => e.name === reactionName);
       if (emoji) {
-        return `<img src="${emoji.imageUrl}" alt="${emoji.name}" class="emoji-image">`;
+        return `<img src="${emoji.imageUrl}" alt="${emoji.name}" class="emoji-image" oncontextmenu="return false;">`;
       }
 
       // Unicode 絵文字の場合
@@ -501,6 +501,9 @@ export default {
     checkHighlight(reaction) {
       return toRaw(reaction).users.some(user => user.id === this.localPost.accessedId);
     },
+    preventContextMenu(event) {
+      event.preventDefault();
+    },
   }
 }
 </script>
@@ -542,6 +545,10 @@ export default {
   object-fit: contain;
   overflow-clip-margin: content-box;
   overflow: clip;
+  -moz-user-select: none;
+  -khtml-user-select: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 ::v-deep .add-reaction-image {

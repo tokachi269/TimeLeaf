@@ -284,7 +284,7 @@ def get_slack_reactions_v1():
         res = response.json() 
         if response.json().get("ok"):
             emojis = jsonify(res.get("emoji"))
-            emojis.headers['Cache-Control'] = 'public, max-age=1800'
+            emojis.headers['Cache-Control'] = 'public, max-age=1800' # 30 分間キャッシュ
             return emojis
         else:
             return jsonify(res)
@@ -302,7 +302,9 @@ def get_slack_reactions_v2():
         update_reaction_cache()
 
     if reaction_cache:
-        return jsonify(reaction_cache)
+        res = jsonify(reaction_cache)
+        res.headers['Cache-Control'] = 'public, max-age=1800' # 30 分間キャッシュ
+        return res
     else:
         return jsonify({"error": "Failed to fetch emoji"}), 500
 

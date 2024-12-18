@@ -9,7 +9,8 @@
     <!-- 絵文字ピッカー -->
     <div v-if="showEmojiPicker" :style="{ top: pickerPosition.top + 'px', left: pickerPosition.left + 'px' }"
       class="emoji-picker modal">
-      <Picker :data="emojiIndex" set="google" @select="selectReaction" />
+      <Picker :data="emojiIndex" set="apple" showPreview="false" @select="selectReaction" @focus="movePickerUp"
+        @blur="resetPickerPosition" />
     </div>
     <!-- タイムラインカード -->
     <TimelineCard v-for="post in posts" :key="post.id" :post="post" :accessToken="accessToken" :emojiMap="emojiMap"
@@ -66,6 +67,7 @@ export default {
       }, // Pickerのスタイルを格納する変数
       isScrolling: false,
       isTapped: false, // タップ状態を管理
+      recentEmojis: ["shochi", "arigatougozaimasu", "yoroshikuonegaishimasu", "参加", "otsu", "すごい", "お大事に", "sumi", "さすが", "お疲れ様でした", "munen", "素敵", "yoros", "わくわく", "pikachu", "iine", "異議なし", "おめでとうございます"],//, "おつかれさま", "了解です"
     }
   },
   provide() {
@@ -93,8 +95,12 @@ export default {
   },
   async mounted() {
     this.init();
+    // デスクトップでのみスクロール検知
+    if (!this.isMobile()) {
+      window.addEventListener("scroll", this.onScroll); // スクロール検知
+    }
     window.addEventListener("resize", this.checkHeight); // imageGalleryのサイズ変更(画像が呼び込まれた)検知
-    window.addEventListener("scroll", this.onScroll); // スクロール検知
+
     // タップイベントリスナー (スマホ)
   },
   beforeUnmount() {
@@ -108,6 +114,9 @@ export default {
     if (this.observer) this.observer.disconnect()
   },
   methods: {
+    isMobile() {
+      return /Mobi|Android/i.test(navigator.userAgent);
+    },
     async init() {
       console.log("TimelineCard called");
       this.isFollowing = this.getCookie('isFollowing')?.toLowerCase() === "true";
@@ -184,7 +193,7 @@ export default {
         console.error('Error fetching data:', error);
       });
       this.emojiMap = emojis;
-      this.emojiIndex = new EmojiIndex(data, { custom: emojis })
+      this.emojiIndex = new EmojiIndex(data, { custom: emojis, recent: this.recentEmojis })
       console.log("emojiMap:", this.emojiMap);
       // フォロー中のチャンネルがない場合
       if (this.isFollowing && channels.followed_channels.length === 0) {
@@ -212,7 +221,7 @@ export default {
                 // emojiMap から画像URLを取得し、該当する画像タグに変換
                 const emoji = this.emojiMap.find(e => e.name === emojiName);
                 if (emoji) {
-                  return `<img src="${emoji.imageUrl}" alt="${emoji.name}" class="emoji-image" oncontextmenu="return false;" ondragstart="return false;" >`;
+                  return `<img src="${emoji.imageUrl}" alt="${emoji.name}" class="emoji-image" @contextmenu="preventContextMenu">`;
                 }
 
                 // emojiMapに存在しない場合、unicodeEmojisで検索
@@ -332,6 +341,12 @@ export default {
         }
       }
     },
+    disableScroll() {
+      window.removeEventListener('scroll', this.onScroll);
+    },
+    enableScroll() {
+      window.addEventListener('scroll', this.onScroll);
+    },
     selectReaction(emoji) {
       this.emojisOutput = this.emojisOutput + emoji.native;
       this.showEmojiPicker = false;
@@ -362,8 +377,11 @@ export default {
         this.pickerPosition.left = viewportWidth - pickerWidth - 10;
       }
       if (this.pickerPosition.top + pickerHeight > viewportHeight) {
-        this.pickerPosition.top = viewportHeight - pickerHeight - 10;
+        this.pickerPosition.top = viewportHeight - pickerHeight - 200;
       }
+    },
+    preventContextMenu(event) {
+      event.preventDefault();
     },
   },
 }
@@ -421,8 +439,8 @@ export default {
   z-index: 1000;
   display: flex;
   flex-direction: column;
-  align-items: center;
   /* 中央揃え */
+  align-items: center;
 }
 
 .modal {
