@@ -49,7 +49,6 @@ def update_user_cache():
         if response.json().get("ok"):
             user_cache = res["members"]
             last_user_update = time.time()
-            print(user_cache)
         else:
             print(res)
     else:
