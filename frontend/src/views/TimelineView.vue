@@ -20,7 +20,7 @@
 
     <!-- 無限スクロールのトリガー -->
     <div ref="infiniteScrollTrigger" class="loading-trigger">
-      <div v-if="loading">Loading...</div>
+      <div v-if="loading" class= "loading-text">Loading...</div>
     </div>
   </div>
 </template>
@@ -403,6 +403,17 @@ export default {
   margin-bottom: 20px;
 }
 
+.loading-text {
+  animation: fadeInOut 1.5s infinite;
+}
+@keyframes fadeInOut {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
 .timeline-toggle button {
   flex: 1;
   padding: 10px;
