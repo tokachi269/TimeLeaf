@@ -1,5 +1,5 @@
 <template>
-  <div class="card">
+  <div v-if="canDisplayPost" class="card">
     <a :href="localPost.channelUrl" class="channel-name" target="_blank" rel="noopener noreferrer"> {{
       localPost.channelName }} </a>
     <div class="header">
@@ -108,6 +108,7 @@ export default {
       hoveredReactionName: "",
       popupPosition: { top: 0, left: 0 },
       thumbnailHtml: "",
+      canDisplayPost: false,
     };
   },
   inject: {
@@ -146,11 +147,12 @@ export default {
     if (this.isTouchDevice) {
       window.addEventListener("touchstart", this.onTap);
     }
-    console.log("urls:" + this.localPost.urls);
-
+    await this.fetchReplies();
+    //スレッド投稿の場合は表示しないが、スレッドブロードキャストの場合は表示する
+    const message = this.replies?.find((msg) => msg.ts === this.localPost.ts);
+    this.canDisplayPost = !(message && message.thread_ts && message?.subtype !== "thread_broadcast");
     this.extractThumbnail();
 
-    this.fetchReplies();
   },
   beforeUnmount() {
     window.removeEventListener("resize", this.checkHeight);
@@ -271,7 +273,7 @@ export default {
             if (trackId) {
               // サムネイル用HTMLを作成
               this.thumbnailHtml = `
-<iframe style="border-radius:12px" src="https://open.spotify.com/embed/track/${trackId}?utm_source=generator" width="100%" height="352" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
+                <iframe style="border-radius:12px" src="https://open.spotify.com/embed/track/${trackId}?utm_source=generator" width="100%" height="352" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
               `;
             }
           } else if (url.includes("youtu.be") || url.includes("youtube.com")) {

@@ -175,7 +175,7 @@ def get_slack_messages():
     params = {
         "query": query,
         "cursor": cursor,
-        "limit": 20,
+        "limit": 30,
         "sort":"timestamp"
     }
     response = requests.get(url, headers=headers, params=params)

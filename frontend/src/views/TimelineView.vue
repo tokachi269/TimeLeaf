@@ -233,6 +233,10 @@ export default {
 
                 return match;  // 見つからなければ元の文字列を返す
               });
+              let isFollowed = false;
+              if (channels.followed_channels.find(channel => channel.name === msg.channel.name)) {
+                isFollowed = true;
+              }
 
               // チャンネルの創設者と と メッセージのuserIDが一致するかをチェック
               const channel = channels.followed_channels.find(channel => channel.id === msg.channel.id);
@@ -255,6 +259,7 @@ export default {
                 channelName: "#" + msg.channel.name,
                 channelUrl: msg.permalink,
                 isMaster: isMaster,
+                isFollowed: isFollowed,
                 content: formattedContent,  // メッセージ内容 (画像に変換済み)
                 thumbnailHtmls: msg.attachments,
                 files: msg.files,
