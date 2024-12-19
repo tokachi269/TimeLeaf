@@ -118,7 +118,6 @@ def oauth_redirect():
         scheme = parsed_referer.scheme
         domain = parsed_referer.netloc
         full_url = f"{scheme}://{domain}"
-        print(f"Referer URL: {full_url}")
 
     params={
         "client_id": SLACK_CLIENT_ID,
@@ -126,7 +125,6 @@ def oauth_redirect():
         "code": code,
         "redirect_uri":full_url
     }
-    print(request.headers.get('referer'))
     response = requests.get(url, params=params, headers=headers)
 
     if response.status_code == 200:
@@ -274,7 +272,6 @@ def get_slack_times_channels():
 @controller_bp.route('/v1/slack/emojis', methods=['GET'])
 def get_slack_reactions_v1():
     token = request.headers.get('authorization')
-    print(token)
 
     url = "https://slack.com/api/emoji.list"
     headers = {
@@ -295,7 +292,6 @@ def get_slack_reactions_v1():
 @controller_bp.route('/v2/slack/emojis', methods=['GET'])
 def get_slack_reactions_v2():
     token = request.headers.get('authorization')
-    print(token)
     global reaction_cache
     global last_reaction_update
     # キャッシュが古い場合は更新
@@ -390,7 +386,6 @@ def get_image():
     token = request.headers.get('authorization')
     if not token:
         token = f"Bearer {request.cookies.get('token')}"
-    print(token)
     url = request.args.get("url")
     type = request.args.get("type")
     if not (url or type):
