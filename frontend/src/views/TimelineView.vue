@@ -20,8 +20,10 @@
 
     <!-- 無限スクロールのトリガー -->
     <div ref="infiniteScrollTrigger" class="loading-trigger">
-      <div v-if="loading" class= "loading-text">Loading...</div>
+      <div v-if="loading" class="loading-text">Loading...</div>
     </div>
+    <!-- スクロールの一番上に移動するボタン -->
+    <button v-if="showScrollToTop" class="scroll-to-top" @click="scrollToTop">︿</button>
   </div>
 </template>
 
@@ -69,6 +71,9 @@ export default {
       isTapped: false, // タップ状態を管理
       recentEmojis: ["shochi", "arigatougozaimasu", "yoroshikuonegaishimasu", "参加", "otsu", "すごい", "お大事に", "sumi", "さすが", "お疲れ様でした", "munen", "素敵", "yoros", "わくわく", "pikachu", "iine", "異議なし", "おめでとうございます"],//, "おつかれさま", "了解です"
       urls: [],
+      fetchCount: 0,
+      showScrollToTop: false // スクロールの一番上に移動するボタンの表示を管理
+
     }
   },
   provide() {
@@ -97,9 +102,8 @@ export default {
   async mounted() {
     this.init();
     // デスクトップでのみスクロール検知
-    if (!this.isMobile()) {
-      window.addEventListener("scroll", this.onScroll); // スクロール検知
-    }
+    window.addEventListener("scroll", this.onScroll); // スクロール検知
+
     window.addEventListener("resize", this.checkHeight); // imageGalleryのサイズ変更(画像が呼び込まれた)検知
 
     // タップイベントリスナー (スマホ)
@@ -300,6 +304,65 @@ export default {
         return `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`;
       });
     },
+    scrollToTop() {
+      const scrollDuration = 300; // スクロールの速度（ミリ秒）
+      const start = window.scrollY;
+      const startTime = performance.now();
+
+      const easeInOutQuad = (t) => {
+        return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+      };
+
+      const scroll = (currentTime) => {
+        const timeElapsed = currentTime - startTime;
+        const progress = Math.min(timeElapsed / scrollDuration, 1);
+        const ease = easeInOutQuad(progress);
+
+        window.scrollTo(0, start * (1 - ease));
+
+        if (timeElapsed < scrollDuration) {
+          requestAnimationFrame(scroll);
+        }
+      };
+
+      requestAnimationFrame(scroll);
+    },
+    onScroll() {
+      // ユーザーポップアップが表示されている場合は閉じる
+      this.isScrolling = true;
+      if (this.showEmojiPicker) {
+          this.showEmojiPicker = false;
+      }
+      // スクロール位置を監視してボタンを表示
+      this.showScrollToTop = window.scrollY > 800; // 200px以上スクロールしたらボタンを表示
+
+      // 100ms 後にスクロールが止まったと判断
+      clearTimeout(this.scrollTimeout);
+      this.scrollTimeout = setTimeout(() => {
+        this.isScrolling = false;
+        this.checkAndLoadMorePosts();
+      }, 100);
+    },
+    async checkAndLoadMorePosts() {
+      // スクロールが一番下に来たときを判定してfetchPostsを呼び出す
+      const timelineHeight = document.documentElement.scrollHeight;
+      const scrollPosition = window.innerHeight + window.scrollY;
+      const threshold = 20; // 近さの閾値（ピクセル）
+
+      if (Math.abs(scrollPosition - timelineHeight) <= threshold && this.fetchCount < 3) {
+        this.fetchCount++;
+        console.log("checkAndLoadMorePosts called")
+        setTimeout(() => {
+          if (!this.loading) {
+            this.loadPosts();
+            setTimeout(() => {
+              this.fetchCount = 0;
+              this.checkAndLoadMorePosts(); // 再度スクロールが一番下か判定してfetchPostsを呼び出す
+            }, 2000);
+          }
+        }, 100);
+      }
+    },
     // インフィニットスクロールの設定
     initIntersectionObserver() {
       //スクロールしたら自動ロード
@@ -325,18 +388,6 @@ export default {
       const value = `; ${document.cookie}`;
       const parts = value.split(`; ${name}=`);
       if (parts.length === 2) return parts.pop().split(';').shift();
-    },
-    onScroll() {
-      // ユーザーポップアップが表示されている場合は閉じる
-      this.isScrolling = true;
-      if (this.showEmojiPicker) {
-        this.showEmojiPicker = false;
-      }
-      // 100ms 後にスクロールが止まったと判断
-      clearTimeout(this.scrollTimeout);
-      this.scrollTimeout = setTimeout(() => {
-        this.isScrolling = false;
-      }, 100);
     },
     closeEmojiPickerOnTapOrClick(event) {
       console.log("closeEmojiPickerOnTapOrClick called");
@@ -406,14 +457,19 @@ export default {
 .loading-text {
   animation: fadeInOut 1.5s infinite;
 }
+
 @keyframes fadeInOut {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.3;
   }
 }
+
 .timeline-toggle button {
   flex: 1;
   padding: 10px;
@@ -470,5 +526,24 @@ export default {
   bottom: 0;
   display: flex;
   z-index: 9999;
+}
+
+.scroll-to-top {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  background-color: #f9f9f9;
+  border: none;
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  font-size: 24px;
+  cursor: pointer;
+  color: rgba(91, 91, 91, 0.6);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+  transition: background-color 0.3s ease;
+}
+.scroll-to-top:hover {
+  background-color: #e0e0e0;
 }
 </style>
