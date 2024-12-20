@@ -268,24 +268,24 @@ export default {
         }
       }
       this.localPost.urls.forEach(url => {
-          if (url.includes("open.spotify.com")) {
-            const trackId = this.extractTrackId(url);
-            if (trackId) {
-              // サムネイル用HTMLを作成
-              this.thumbnailHtml = `
-                <iframe style="border-radius:12px" src="https://open.spotify.com/embed/track/${trackId}?utm_source=generator" width="100%" height="352" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
+        if (url.includes("open.spotify.com")) {
+          const trackId = this.extractTrackId(url);
+          if (trackId) {
+            // サムネイル用HTMLを作成
+            this.thumbnailHtml = `
+                <iframe style="border-radius:12px" src="https://open.spotify.com/embed/${url.includes("track") ? "track" : url.includes("album") ? "track" : "playlist"}/${trackId}?utm_source=generator" width="100%" height="352" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
               `;
-            }
-          } else if (url.includes("youtu.be") || url.includes("youtube.com")) {
-            const videoId = this.extractTrackId(url);
-            if (videoId) {
-              // YouTube埋め込み用HTMLを作成
-              this.thumbnailHtml = `
+          }
+        } else if (url.includes("youtu.be") || url.includes("youtube.com")) {
+          const videoId = this.extractTrackId(url);
+          if (videoId) {
+            // YouTube埋め込み用HTMLを作成
+            this.thumbnailHtml = `
                 <iframe width="100%" height="315" src="https://www.youtube.com/embed/${videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
               `;
-            }
           }
-        });
+        }
+      });
     },
     extractTrackId(url) {
       const match = url.match(/\/([^\\/?]+)\?/);
@@ -890,7 +890,8 @@ export default {
   font-size: .8em;
   border-radius: 7px;
   box-shadow: 0 2px 3px #0003;
-
+  user-select: none;
+  /* 文字を選択できなくする */
 }
 
 /* スクロール中は拡大を無効化 */
