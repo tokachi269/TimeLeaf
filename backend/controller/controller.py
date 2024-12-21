@@ -214,28 +214,28 @@ def get_slack_message_replies():
         if response.json().get("ok"):
             for message in res.get("messages"):
                 postUser = message.get("user")
-                user_name = ""
+                user_real_name = ""
                 for user in user_cache:
                     if user["id"] == postUser:
-                        user_name = user["profile"].get("display_name", user["profile"].get("real_name", "Unknown User"))
-                        user_real_name = user["profile"].get("real_name", "Unknown User")
+                        user_real_name = user["profile"].get("display_name", user["profile"].get("real_name", "Unknown User"))
+                        user_name = user["profile"].get("real_name", "Unknown User")
                         break
                 # メッセージにユーザー名と和名を追加
-                message["user_name"] = user_name
                 message["user_real_name"] = user_real_name
+                message["user_name"] = user_name
 
                 if message.get("reactions"):
                     for reaction in message.get("reactions"):
                             updated_users = []
                             for user_id in reaction.get("users", []):
                                 # user_cache からユーザー名を取得。存在しない場合は user_id のまま
-                                user_name = ""
+                                user_real_name = ""
                                 for user in user_cache:
                                     if user["id"] == user_id:
-                                        user_name = user["profile"].get("display_name", user["profile"].get("real_name", "Unknown User"))
+                                        user_real_name = user["profile"].get("display_name", user["profile"].get("real_name", "Unknown User"))
                                         break
 
-                                updated_users.append({"id":user_id, "name":user_name })
+                                updated_users.append({"id":user_id, "name":user_real_name })
                             # users リストを更新
                             reaction["users"] = updated_users
             messages = jsonify(res.get("messages"))
