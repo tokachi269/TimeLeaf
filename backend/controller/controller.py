@@ -396,7 +396,7 @@ def get_slack_messages_reply():
         "text": text,
         "thread_ts": thread_ts,
     }
-    response = requests.POST(url, headers=headers, params=params)
+    response = requests.post(url, headers=headers, params=params)
     if response.status_code == 200:
         res = response.json() 
         if response.json().get("ok"):
