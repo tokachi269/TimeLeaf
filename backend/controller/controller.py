@@ -344,11 +344,10 @@ def get_slack_reactions_insert():
         "name": name,
         "timestamp": ts,
     }
-    response = requests.get(url, headers=headers, params=params)
+    response = requests.post(url, headers=headers, params=params)
     if response.status_code == 200:
         res = response.json() 
         if response.json().get("ok"):
-            print(res)
             return jsonify({"message": "Reaction added successfully"}), 200
         else:
             return jsonify(res), 400
@@ -371,10 +370,9 @@ def get_slack_reactions_delete():
         "name": name,
         "timestamp": ts,
     }
-    response = requests.get(url, headers=headers, params=params)
+    response = requests.post(url, headers=headers, params=params)
     if response.status_code == 200:
         res = response.json() 
-        print(res)
         if response.json().get("ok"):
             return jsonify({"message": "Reaction delete successfully"}), 200
         else:
@@ -382,6 +380,32 @@ def get_slack_reactions_delete():
     else:
         return jsonify({"error": "Failed to delete reaction"}), 500
  
+@controller_bp.route('/v1/slack/messages/reply', methods=['POST'])
+def get_slack_reactions_insert():
+    token = request.headers.get('authorization')
+    channelId = request.args.get("channelId")
+    text = request.args.get("text")
+    thread_ts = request.args.get("thread_ts")
+
+    url = "https://slack.com/api/chat.postMessage"
+    headers = {
+        "Authorization": f"{token}",
+    }
+    params = {
+        "channel": channelId,
+        "text": text,
+        "thread_ts": thread_ts,
+    }
+    response = requests.POST(url, headers=headers, params=params)
+    if response.status_code == 200:
+        res = response.json() 
+        if response.json().get("ok"):
+            return jsonify(res.get("message")), 200
+        else:
+            return jsonify(res), 400
+    else:
+        return jsonify({"error": "Failed to set reaction"}), 500
+
 @controller_bp.route('/v1/slack/image', methods=['GET'])
 def get_image():
     token = request.headers.get('authorization')
