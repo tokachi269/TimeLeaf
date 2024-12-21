@@ -348,7 +348,8 @@ def get_slack_reactions_insert():
     if response.status_code == 200:
         res = response.json() 
         if response.json().get("ok"):
-            return 200
+            print(res)
+            return jsonify({"message": "Reaction added successfully"}), 200
         else:
             return jsonify(res), 400
     else:
@@ -373,8 +374,9 @@ def get_slack_reactions_delete():
     response = requests.get(url, headers=headers, params=params)
     if response.status_code == 200:
         res = response.json() 
+        print(res)
         if response.json().get("ok"):
-            return 200
+            return jsonify({"message": "Reaction delete successfully"}), 200
         else:
             return jsonify(res), 400
     else:
