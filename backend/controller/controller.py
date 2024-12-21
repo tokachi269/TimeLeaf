@@ -381,7 +381,7 @@ def get_slack_reactions_delete():
         return jsonify({"error": "Failed to delete reaction"}), 500
  
 @controller_bp.route('/v1/slack/messages/reply', methods=['POST'])
-def get_slack_reactions_insert():
+def get_slack_messages_reply():
     token = request.headers.get('authorization')
     channelId = request.args.get("channelId")
     text = request.args.get("text")
