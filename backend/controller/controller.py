@@ -219,11 +219,12 @@ def get_slack_message_replies():
                     if user["id"] == postUser:
                         user_real_name = user["profile"].get("display_name", user["profile"].get("real_name", "Unknown User"))
                         user_name = user["profile"].get("real_name", "Unknown User")
+                        user_img_src = user["profile"].get("image_72")
                         break
                 # メッセージにユーザー名と和名を追加
                 message["user_real_name"] = user_real_name
                 message["user_name"] = user_name
-
+                message["user_image"] = user_img_src
                 if message.get("reactions"):
                     for reaction in message.get("reactions"):
                             updated_users = []
