@@ -61,7 +61,8 @@ export default {
       emojiMap: [],
       errorMessage: '', // エラーメッセージを格納する変数
       showEmojiPicker: false,
-      selectedPostId: null,
+      selectedTs: null,
+      selectedThreadTs: null,
       emojiIndex: null,
       pickerPosition: {
         top: 0, // Pickerの高さを考慮して調整
@@ -125,6 +126,42 @@ export default {
     async init() {
       console.log("TimelineCard called");
       this.isFollowing = this.getCookie('isFollowing')?.toLowerCase() === "true";
+
+      // FlaskサーバーからSlackメッセージを取得
+      const channels = await fetch(`${API_BASE_URL}/api/v1/slack/timesChannels`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.accessToken}`
+        }
+      }).then(response => {
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        return response.json();
+      }).catch(error => {
+        console.error('Error fetching data:', error);
+      });
+      console.log("channelMap:", channels);
+      this.channels = channels;
+      // FlaskサーバーからSlacke絵文字を取得
+      const emojis = await fetch(`${API_BASE_URL}/api/v2/slack/emojis`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.accessToken}`
+        }
+      }).then(response => {
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        return response.json();
+      }).catch(error => {
+        console.error('Error fetching data:', error);
+      });
+      this.emojiMap = emojis;
+      this.emojiIndex = new EmojiIndex(data, { custom: emojis, recent: this.recentEmojis });
+      console.log("emojiMap:", this.emojiMap);
+      // フォロー中のチャンネルがない場合
+
       this.fetchPosts();
     },
     fetchPosts() {
@@ -167,47 +204,13 @@ export default {
 
       this.loading = true;
 
-      // FlaskサーバーからSlackメッセージを取得
-      const channels = await fetch(`${API_BASE_URL}/api/v1/slack/timesChannels`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${this.accessToken}`
-        }
-      }).then(response => {
-        if (!response.ok) {
-          throw new Error('Network response was not ok');
-        }
-        return response.json();
-      }).catch(error => {
-        console.error('Error fetching data:', error);
-      });
-      console.log("channelMap:", channels);
-
-      // FlaskサーバーからSlacke絵文字を取得
-      const emojis = await fetch(`${API_BASE_URL}/api/v2/slack/emojis`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${this.accessToken}`
-        }
-      }).then(response => {
-        if (!response.ok) {
-          throw new Error('Network response was not ok');
-        }
-        return response.json();
-      }).catch(error => {
-        console.error('Error fetching data:', error);
-      });
-      this.emojiMap = emojis;
-      this.emojiIndex = new EmojiIndex(data, { custom: emojis, recent: this.recentEmojis })
-      console.log("emojiMap:", this.emojiMap);
-      // フォロー中のチャンネルがない場合
-      if (this.isFollowing && channels.followed_channels.length === 0) {
+      if (this.isFollowing && this.channels.followed_channels.length === 0) {
         this.errorMessage = 'フォローしているチャンネルがありません';
         this.loading = false
       } else {
         try {
           // FlaskサーバーからSlackメッセージを取得
-          const response = await fetch(`${API_BASE_URL}/api/v1/slack/messages?cursor=${encodeURIComponent(this.nextCursor == null ? '*' : this.nextCursor)}&query=${(this.isFollowing ? encodeURIComponent(this.makeQuery(channels.followed_channels)) : encodeURIComponent(this.makeQuery(channels.channels)))}`, {
+          const response = await fetch(`${API_BASE_URL}/api/v1/slack/messages?cursor=${encodeURIComponent(this.nextCursor == null ? '*' : this.nextCursor)}&query=${(this.isFollowing ? encodeURIComponent(this.makeQuery(this.channels.followed_channels)) : encodeURIComponent(this.makeQuery(this.channels.channels)))}`, {
             method: 'GET',
             headers: {
               'Content-Type': 'application/json',
@@ -238,12 +241,12 @@ export default {
                 return match;  // 見つからなければ元の文字列を返す
               });
               let isFollowed = false;
-              if (channels.followed_channels.find(channel => channel.name === msg.channel.name)) {
+              if (this.channels.followed_channels.find(channel => channel.name === msg.channel.name)) {
                 isFollowed = true;
               }
 
               // チャンネルの創設者と と メッセージのuserIDが一致するかをチェック
-              const channel = channels.followed_channels.find(channel => channel.id === msg.channel.id);
+              const channel = this.channels.followed_channels.find(channel => channel.id === msg.channel.id);
               const isMaster = channel ? channel.creator === msg.user : false;
               formattedContent = formattedContent.replace(/\n/g, '<br>');
               this.urls = [];
@@ -331,7 +334,7 @@ export default {
       // ユーザーポップアップが表示されている場合は閉じる
       this.isScrolling = true;
       if (this.showEmojiPicker) {
-          this.showEmojiPicker = false;
+        this.showEmojiPicker = false;
       }
       // スクロール位置を監視してボタンを表示
       this.showScrollToTop = window.scrollY > 800; // 200px以上スクロールしたらボタンを表示
@@ -351,7 +354,6 @@ export default {
 
       if (Math.abs(scrollPosition - timelineHeight) <= threshold && this.fetchCount < 3) {
         this.fetchCount++;
-        console.log("checkAndLoadMorePosts called")
         setTimeout(() => {
           if (!this.loading) {
             this.loadPosts();
@@ -409,13 +411,14 @@ export default {
     selectReaction(emoji) {
       this.emojisOutput = this.emojisOutput + emoji.native;
       this.showEmojiPicker = false;
-      console.log(this.selectedPostId);
+      console.log(this.selectedTs);
       // カードのコンポーネントを取得して絵文字を送信
-      const card = this.$refs.timelineCards.find(card => card.localPost.ts === this.selectedPostId);
-      card.handleEmojiSelected(emoji);
+      const card = this.$refs.timelineCards.find(card => card.localPost.ts === this.selectedTs);
+      card.handleEmojiSelected(emoji, this.selectedTs, this.selectedThreadTs);
     },
-    handleOpenPicker(ts, event) {
-      this.selectedPostId = ts;
+    handleOpenPicker(ts, threadTs, event) {
+      this.selectedTs = ts;
+      this.selectedThreadTs = threadTs;
       this.showEmojiPicker = true;
       // ホバーした要素の位置を取得
       const targetElement = event.currentTarget;
@@ -543,6 +546,7 @@ export default {
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
   transition: background-color 0.3s ease;
 }
+
 .scroll-to-top:hover {
   background-color: #e0e0e0;
 }

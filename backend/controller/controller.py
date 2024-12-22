@@ -412,7 +412,36 @@ def get_slack_messages_reply():
     if response.status_code == 200:
         res = response.json() 
         if response.json().get("ok"):
-            return jsonify(res.get("message")), 200
+            message = res.get("message")
+
+            postUser = message.get("user")
+            user_real_name = ""
+            for user in user_cache:
+                if user["id"] == postUser:
+                    user_real_name = user["profile"].get("display_name", user["profile"].get("real_name", "Unknown User"))
+                    user_name = user["profile"].get("real_name", "Unknown User")
+                    user_img_src = user["profile"].get("image_72")
+                    break
+            # メッセージにユーザー名と和名を追加
+            message["user_real_name"] = user_real_name
+            message["user_name"] = user_name
+            message["user_image"] = user_img_src
+            if message.get("reactions"):
+                for reaction in message.get("reactions"):
+                        updated_users = []
+                        for user_id in reaction.get("users", []):
+                            # user_cache からユーザー名を取得。存在しない場合は user_id のまま
+                            user_real_name = ""
+                            for user in user_cache:
+                                if user["id"] == user_id:
+                                    user_real_name = user["profile"].get("display_name", user["profile"].get("real_name", "Unknown User"))
+                                    break
+
+                            updated_users.append({"id":user_id, "name":user_real_name })
+                        # users リストを更新
+                        reaction["users"] = updated_users
+
+            return jsonify(message), 200
         else:
             return jsonify(res), 400
     else:

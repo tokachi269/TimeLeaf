@@ -137,7 +137,7 @@ export default {
         console.error('エラーが発生しました:', error);
         this.invalidToken = true;
       }
-      this.errorMessage = `トークンの取得中にエラーが発生しました...<br>
+      this.errorMessage = `認証中にエラーが発生しました...<br>
       しばらく経ってから再度アクセスしてください。`;
     },
     getCookie(name) {
@@ -161,6 +161,7 @@ export default {
         "files:read",
         "channels:history",
         "reactions:write",
+        "chat:write"
       ];
 
       // 配列をカンマ区切りの文字列に変換

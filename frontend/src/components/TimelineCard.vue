@@ -1,4 +1,5 @@
 <template>
+
   <div v-if="canDisplayPost" class="card">
     <a :href="localPost.channelUrl" class="channel-name" target="_blank" rel="noopener noreferrer"> {{
       localPost.channelName }} </a>
@@ -12,8 +13,13 @@
     <div class="content-wrapper">
       <div class="empty-space"></div>
       <div class="content-area">
+
         <div class="content" v-html="localPost.content"></div>
+
+        <!-- URLのサムネイル -->
         <div v-if="thumbnailHtml" class="url-preview-container" v-html="thumbnailHtml"></div> <!-- サムネイル表示 -->
+
+        <!-- 画像一覧 -->
         <div v-if="hasImage">
           <div ref="imageGallery" class="image-gallery" :class="[setGalleryClass, { 'expanded': isExpanded }]">
             <div v-for="(file, index) in visibleImages" :key="index" class="image-item">
@@ -27,37 +33,119 @@
             <span class="expand-button-context">もっと見る</span>
           </button>
         </div>
+
+        <!-- リアクション一覧 -->
         <div class="reaction-list">
           <div v-for="reaction in reactions" :key="reaction.name" class="reaction-item"
-            :class="{ 'highlight': checkHighlight(reaction) }" @mouseenter="showUserList(reaction.name, $event)"
-            @mouseleave="hideUserList" @click="insertOrDeleteReaction(reaction.name, true)"
-            @mousedown="handleReactionMouseDown(reaction.name, $event)" @mouseup="handleReactionMouseUp"
-            @touchstart="handleReactionMouseDown(reaction.name, $event)" @touchend="handleReactionMouseUp">
+            :class="{ 'highlight': checkHighlight(reaction) }"
+            @mouseenter="showUserList(reaction, reaction.name, $event)" @mouseleave="hideUserList"
+            @click="insertOrDeleteReaction(reaction.name, localPost.ts, localPost.ts, true)"
+            @mousedown="handleReactionMouseDown(reaction, reaction.name, $event)" @mouseup="handleReactionMouseUp"
+            @touchstart="handleReactionMouseDown(reaction, reaction.name, $event)" @touchend="handleReactionMouseUp">
             <span v-html="getEmojiForReaction(reaction.name)"></span>
             <span class="reaction-count">{{ reaction.count }}</span>
           </div>
-          <div v-if="reactions.length != 0" @click="openEmojiPicker($event)" class="reaction-item"> <img
-              src="./../assets/emoji-add.png" alt="Add Reaction" class="emoji-image">
+          <div v-if="reactions.length != 0" @click="openEmojiPicker(this.localPost.ts, $event)" class="reaction-item">
+            <img src="./../assets/emoji-add.png" alt="Add Reaction" class="emoji-image">
           </div>
+          <br>
+        </div>
+        <!-- ユーザーポップアップ -->
+        <div v-if="isUserListVisible" class="user-popup" :class="{ 'is-scrolling': isScrolling, 'is-tapped': isTapped }"
+          :style="{ top: popupPosition.top + 'px', left: popupPosition.left + 'px' }">
+          <!-- リアクション名を表示 -->
+          <div class="reaction-name">:{{ hoveredReactionName }}:</div>
+          <hr class="separator-line" />
+          <ul>
+            <li v-for="user in hoveredUsers" :key="user">{{ user }}</li>
+          </ul>
+        </div>
+        <!-- スレッド表示/非表示ボタン -->
+        <div v-if="replies && replies.length > 1" class="thread-container">
 
-          <!-- ユーザーポップアップ -->
-          <div v-if="isUserListVisible" class="user-popup"
-            :class="{ 'is-scrolling': isScrolling, 'is-tapped': isTapped }"
-            :style="{ top: popupPosition.top + 'px', left: popupPosition.left + 'px' }">
-            <!-- リアクション名を表示 -->
-            <div class="reaction-name">:{{ hoveredReactionName }}:</div>
-            <hr class="separator-line" />
-            <ul>
-              <li v-for="user in hoveredUsers" :key="user">{{ user }}</li>
-            </ul>
+          <div class="thread-toggle">
+            <button @click="toggleThread" v-if="!showThread">スレッドを表示</button>
+            <button @click="toggleThread" v-if="showThread">スレッドを閉じる</button>
           </div>
+          <!-- スレッドの内容を表示 -->
+          <transition name="slide-fade">
+            <div v-if="showThread && replies && replies.length > 1">
+              <div class="thread-content">
+                <div v-for="(reply, index) in replies" :key="reply.ts" class="thread-reply">
+                  <div v-if="index > 0">
+                    <div class="header">
+                      <img :src="userImage" alt="User Image" class="user-image user-reply-image" />
+                      <div class="user-info">
+                        <span class="username">{{ reply.user_real_name }}</span>
+                        <span class="username-en">{{ reply.user_name }}</span>
+                      </div>
+                    </div>
+                    <div class="content-wrapper">
+                      <div class="thread-empty-space"></div>
+                      <div class="content-area">
+                        <div class="content" v-html="reply.text"></div>
+                      </div>
+                    </div>
+
+                    <!-- 画像一覧 -->
+                    <div v-if="reply.files">
+                      画像表示は現在未対応です
+
+                      <!-- <div ref="imageGallery" class="image-gallery"
+                        :class="[setGalleryClass, { 'expanded': isExpanded }]">
+                        <div v-for="(file, index) in  reply.files.slice(0, 4)" :key="index" class="image-item">
+                          <img :src="fetchImageSrcReply(file, true)" :alt="file.name" class="image" @click="openModal(index)" crossorigin="anonymous" />
+                        </div>
+                      </div>
+                      <button v-if="shouldShowExpandButton" class="expand-button" @click="toggleExpanded">
+                        <span class="expand-button-context">もっと見る</span>
+                      </button> -->
+                    </div>
+                    <!-- リアクション一覧 -->
+                    <div class="reaction-list">
+                      <div v-for="reaction in reply.reactions" :key="reaction.name" class="reaction-item"
+                        :class="{ 'highlight': checkHighlight(reaction) }"
+                        @mouseenter="showUserList(reaction, reaction.name, $event)" @mouseleave="hideUserList"
+                        @click="insertOrDeleteReaction(reaction.name, reply.thread_ts, reply.ts, true)"
+                        @mousedown="handleReactionMouseDown(reaction.name, $event)" @mouseup="handleReactionMouseUp"
+                        @touchstart="handleReactionMouseDown(reaction.name, $event)" @touchend="handleReactionMouseUp">
+                        <span v-html="getEmojiForReaction(reaction.name)"></span>
+                        <span class="reaction-count">{{ reaction.count }}</span>
+                      </div>
+                      <div v-if="reactions.length != 0" @click="openEmojiPicker(reply.ts, $event)"
+                        class="reaction-item">
+                        <img src="./../assets/emoji-add.png" alt="Add Reaction" class="emoji-image">
+                      </div>
+                      <br>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="thread-toggle">
+                <button @click="toggleThread">スレッドを閉じる</button>
+              </div>
+            </div>
+          </transition>
+
         </div>
         <div class="detail-list">
           <div v-if="reactions.length == 0" @click="openEmojiPicker($event)" class="add-reaction-image">
             <img src="./../assets/emoji-add.png" alt="Add Reaction" class="emoji-image">
           </div>
-
+          <div @click="showReplyBox = true" class="add-reaction-image">
+            <img src="./../assets/reply.png" alt="Add Reaction" class="emoji-image">
+          </div>
           <span class="date">{{ post.date }}</span>
+        </div>
+        <!-- テキストボックスと閉じるボタン -->
+        <div v-if="showReplyBox" class="reply-box">
+          <textarea v-model="replyText" placeholder="返信を入力..."></textarea>
+          <div class="reply-button-list">
+            <button @click="fetchAddReply" class="button-submit reply-box-color">送信</button>
+            <input type="checkbox" id="replyBroadcast" v-model="replyBroadcast" />
+            <label for="replyBroadcast">チャンネルにも投稿</label>
+            <button @click="showReplyBox = false" class="button-submit reply-close-box-color">閉じる</button>
+          </div>
         </div>
       </div>
     </div>
@@ -91,6 +179,7 @@ export default {
       replies: [],
       images: [],
       reactions: [],
+      message: {},
       userName: "",
       userNameEn: "",
       userImage: "",
@@ -109,6 +198,10 @@ export default {
       popupPosition: { top: 0, left: 0 },
       thumbnailHtml: "",
       canDisplayPost: false,
+      showReplyBox: false,
+      replyText: '', // テキストボックスの入力内容を管理
+      replyBroadcast: false, // チェックボックスの状態を管理
+      showThread: false, // スレッドの表示/非表示を管理
     };
   },
   inject: {
@@ -149,8 +242,13 @@ export default {
     }
     await this.fetchReplies();
     //スレッド投稿の場合は表示しないが、スレッドブロードキャストの場合は表示する
-    const message = this.replies?.find((msg) => msg.ts === this.localPost.ts);
-    this.canDisplayPost = !(message && message.thread_ts && message?.subtype !== "thread_broadcast");
+    //thread_ts がある、親投稿じゃない、スレッドブロードキャストじゃないときにスレッド内の投稿と判断
+    this.message = this.replies?.find((msg) => msg.ts === this.localPost.ts);
+    this.canDisplayPost = !(this.message && this.message.thread_ts && this.message.thread_ts != this.message.ts && this.message?.subtype !== "thread_broadcast");
+    if (this.message && this.message.thread_ts && this.message.thread_ts == this.message.ts) {
+      console.log(this.message);
+      console.log(this.replies);
+    }
     this.extractThumbnail();
 
   },
@@ -187,10 +285,13 @@ export default {
     },
   },
   methods: {
-    handleReactionMouseDown(reactionName, event) {
+    toggleThread() {
+      this.showThread = !this.showThread;
+    },
+    handleReactionMouseDown(reaction, reactionName, event) {
       // 長押しを検知するためのタイマーを設定
       this.reactionTimeout = setTimeout(() => {
-        this.showUserList(reactionName, event);
+        this.showUserList(reaction, reactionName, event);
       }, 500); // 500ms以上押された場合にユーザーリストを表示
     },
     handleReactionMouseUp() {
@@ -242,6 +343,35 @@ export default {
             this.images.push(file);
           } else {
             this.modalImageUrl = url;
+          }
+        }).catch(error => {
+          console.error('Error fetching data:', error);
+        });
+      } catch (error) {
+        console.error("Error fetching image:", error);
+        return file.thumb_480; // エラーが発生した場合、元のURLを表示
+      }
+    },
+    async fetchImageSrcReply(file, init) {
+      try {
+        // Flaskサーバーから画像を取得
+        // Flaskを経由するのはAuthorizationヘッダーが必要なため。imgタグでヘッダー設定できない
+        // 一度画像を取得して、imgタグではキャッシュを参照している
+        const url = `${API_BASE_URL}/api/v1/slack/image?url=${encodeURIComponent(init ? (file.thumb_720 ? file.thumb_720 : (file.thumb_480 ? file.thumb_480 : file.thumb_360)) : file.url_private)}&type=${encodeURIComponent(file.mimetype)}`;
+        await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${toRaw(this.accessToken)}`
+          }
+        }).then(response => {
+          if (!response.ok) {
+            throw new Error('Network response was not ok');
+          }
+          if (init) {
+            file.url = url;
+            return url;
+          } else {
+            //  this.modalImageUrl = url;
           }
         }).catch(error => {
           console.error('Error fetching data:', error);
@@ -347,13 +477,15 @@ export default {
           }
           return response.json();
         }).catch(error => {
+          this.replies = null;
           console.error('Error fetching data:', error);
         });
         this.replies = await toRaw(response);
 
-        const message = this.replies.find((msg) => msg.ts === this.localPost.ts);
+        const message = this.replies?.find((msg) => msg.ts === this.localPost.ts);
         this.reactions = message?.reactions ?? [];
       } catch (error) {
+        this.replies = null;
         console.error('Error fetching user profile:', error);
       }
     },
@@ -389,9 +521,8 @@ export default {
         .join('');
     },
     // ホバー時にユーザーリストを表示
-    showUserList(reactionName, event) {
-      const reaction = this.reactions.find(r => r.name === reactionName);
-      this.hoveredReactionName = reaction.name;
+    showUserList(reaction, reactionName, event) {
+      this.hoveredReactionName = reactionName;
       if (reaction && reaction.users) {
         this.hoveredUsers = reaction.users.map(user => user.name);
         this.isUserListVisible = true;
@@ -416,30 +547,31 @@ export default {
       this.isUserListVisible = false;
       this.hoveredUsers = [];
     },
-    openEmojiPicker(event) {
+    openEmojiPicker(ts, event) {
       // 絵文字ピッカーを開く(親コンポーネント呼び出し)
-      this.$emit('open-picker', this.localPost.ts, event);
+      this.$emit('open-picker', this.localPost.ts, ts, event);
     },
-    handleEmojiSelected(emoji) {
+    handleEmojiSelected(emoji, parentTs, threadTs) {
       console.log('Selected emoji:', emoji);
       //絵文字ピッカーで選択された絵文字をハンドルし、リアクションを追加または削除
-      this.insertOrDeleteReaction(emoji.short_name, false);
+      this.insertOrDeleteReaction(emoji.short_name, parentTs, threadTs, false);
     },
-    async insertOrDeleteReaction(name, needDelete) {
+    async insertOrDeleteReaction(name, parentTs, threadTs, needDelete) {
       console.log('insertOrDeleteReaction emoji');
       // 選択した絵文字がリアクション済みか確認
-      const reaction = this.existsReaction(name);
+      let reaction = this.existsReaction(name, parentTs === threadTs ? parentTs : threadTs);
+      let reactionList = this.existsReactionsList(parentTs === threadTs ? parentTs : threadTs);
       const isReacted = reaction?.users.some(user => user.id === this.localPost.accessedId);
 
       if (isReacted && reaction) {
         // リアクション済みの場合削除or何もしない
         if (needDelete) {
-          await this.fetchDeleteReaction(name);
-          const index = this.reactions.findIndex(reaction => reaction.name === name);
+          await this.fetchDeleteReaction(name, parentTs);
+          const index = reactionList?.findIndex(reaction => reaction.name === name);
           if (reaction.count == 1) {
             // リアクションのカウントが0人になったら削除
             if (index !== -1) {
-              this.reactions.splice(index, 1);
+              reactionList.splice(index, 1);
               this.isUserListVisible = false;
             }
           } else {
@@ -458,29 +590,60 @@ export default {
       } else {
         // リアクション追加
         // slackにリクエスト
-        const successedReactName = await this.fetchAddReaction(name);
+        const successedReactName = await this.fetchAddReaction(name, parentTs);
         if (successedReactName) {
           //該当の絵文字が存在すれば既存のオブジェクトに追加し、なければ新規追加
-          const existingReaction = this.existsReaction(successedReactName);
+          const existingReaction = this.existsReaction(successedReactName, parentTs === threadTs ? parentTs : threadTs);
           if (existingReaction) {
             existingReaction.count += 1;
             existingReaction.users.push({ id: this.localPost.accessedId, name: this.localPost.accessedName });
-            const index = this.reactions.findIndex(reaction => reaction.name === name);
-            this.reactions[index] = reaction;
+            const index = reactionList.findIndex(reaction => reaction.name === name);
+            reactionList[index] = reaction;
           } else {
-            this.reactions.push({
-              "count": 1,
-              "name": successedReactName,
-              "users": [{ id: this.localPost.accessedId, name: this.localPost.accessedName }]
-            });
+            if (parentTs === threadTs) {
+              this.reactions.push({
+                "count": 1,
+                "name": successedReactName,
+                "users": [{ id: this.localPost.accessedId, name: this.localPost.accessedName }]
+              });
+            } else if (reactionList) {
+              reactionList.push({
+                "count": 1,
+                "name": successedReactName,
+                "users": [{ id: this.localPost.accessedId, name: this.localPost.accessedName }]
+              });
+            } else {
+              const message = this.replies?.find((msg) => msg.ts === (parentTs === threadTs ? parentTs : threadTs));
+              message.reactionList = {
+                "count": 1,
+                "name": successedReactName,
+                "users": [{ id: this.localPost.accessedId, name: this.localPost.accessedName }]
+              };
+            }
           }
         }
       }
     },
-    async fetchAddReaction(name) {
+    existsReaction(name, ts) {
+      if (this.localPost.ts === ts) {
+        return this.reactions.find(reaction => reaction?.name === name);
+      } else {
+        const message = this.replies?.find((msg) => msg.ts === ts);
+        return message?.reactions?.find(reaction => reaction?.name === name);
+      }
+    },
+    existsReactionsList(ts) {
+      if (this.localPost.ts === ts) {
+        return this.reactions;
+      } else {
+        const message = this.replies?.find((msg) => msg.ts === ts);
+        return message?.reactions;
+      }
+    },
+    async fetchAddReaction(name, ts) {
       try {
         // Flaskサーバーからprofileを取得
-        await fetch(`${API_BASE_URL}/api/v1/slack/reactions/insert?channelId=${this.localPost.channelId}&name=${name}&ts=${this.localPost.ts}`, {
+        await fetch(`${API_BASE_URL}/api/v1/slack/reactions/insert?channelId=${this.localPost.channelId}&name=${name}&ts=${ts}`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${toRaw(this.accessToken)}`
@@ -500,10 +663,10 @@ export default {
       }
       return name;
     },
-    async fetchDeleteReaction(name) {
+    async fetchDeleteReaction(name, ts) {
       try {
         // Flaskサーバーからprofileを取得
-        await fetch(`${API_BASE_URL}/api/v1/slack/reactions/delete?channelId=${this.localPost.channelId}&name=${name}&ts=${this.localPost.ts}`, {
+        await fetch(`${API_BASE_URL}/api/v1/slack/reactions/delete?channelId=${this.localPost.channelId}&name=${name}&ts=${ts}`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${toRaw(this.accessToken)}`
@@ -523,9 +686,36 @@ export default {
       }
       return name;
     },
-    existsReaction(name) {
-      return this.reactions.find(reaction => reaction?.name === name);
+    async fetchAddReply() {
+      try {
+        // Flaskサーバーからprofileを取得
+        const response = await fetch(`${API_BASE_URL}/api/v1/slack/messages/reply?channelId=${this.localPost.channelId}&text=${this.replyText}&thread_ts=${(this.message && this.message?.thread_ts) ? this.message.thread_ts : this.localPost.ts}&reply_broadcast=${this.replyBroadcast}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${toRaw(this.accessToken)}`
+          }
+        }).then(response => {
+          if (!response.ok) {
+            throw new Error('Network response was not ok');
+          }
+          this.showReplyBox = false;
+          this.replyText = "";
+          return response;
+        }).catch(error => {
+          console.error('Error fetching data:', error);
+          return;
+        });
+        const data = await response.json();
+        const rep = toRaw(data);
+        this.replies.push(rep);
+        return rep;
+      } catch (error) {
+        console.error('Error fetching add reaction:', error);
+        return;
+      }
+
     },
+
     checkHighlight(reaction) {
       return toRaw(reaction).users.some(user => user.id === this.localPost.accessedId);
     },
@@ -655,6 +845,14 @@ export default {
   display: flex;
 }
 
+.user-reply-image {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  margin-right: 10px;
+  display: flex;
+}
+
 .user-info {
   flex-grow: 1;
   display: flex;
@@ -723,7 +921,7 @@ export default {
   /* 必要に応じて折り返し可能に */
   flex-wrap: wrap;
   /* アイテム間のスペース */
-  gap: 10px;
+  gap: 20px;
   padding: 5px;
   justify-content: flex-end;
   align-items: center;
@@ -934,5 +1132,120 @@ export default {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.reply-box {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.reply-box textarea {
+  width: 100%;
+  height: 60px;
+  margin-bottom: 10px;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+  resize: none;
+}
+
+.reply-button-list {
+  padding: 5px;
+  align-items: center;
+  justify-content: center;
+}
+
+.button-submit {
+  flex: auto;
+  gap: 30px;
+  padding: 8px 16px;
+  background-color: rgb(148, 202, 104);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-right: 30px;
+  transition: background-color 0.3s ease;
+}
+
+.reply-box-color {
+  background-color: rgb(148, 202, 104);
+}
+
+.reply-box-color button:hover {
+  background-color: rgb(132, 181, 91);
+}
+
+.reply-close-box-color {
+  margin-left: 50px;
+  background-color: rgba(177, 177, 177);
+}
+
+.reply-close-box-color button:hover {
+  background-color: rgb(125, 125, 125);
+}
+
+.thread-container {
+  margin: 10px;
+}
+
+.thread-empty-space {
+  width: 20px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  margin-right: 10px;
+}
+
+.thread-reply {
+  margin-bottom: 10px;
+}
+
+.slide-fade-enter-active,
+.slide-fade-leave-active {
+  transition: all 0.5s ease;
+}
+
+.slide-fade-enter,
+.slide-fade-leave-to
+
+/* .slide-fade-leave-active in <2.1.8 */
+  {
+  transform: translateY(10px);
+  opacity: 0;
+}
+
+.thread-content {
+  flex: 1;
+  padding: 10px;
+  border-top: 1px solid #ccc;
+  background-color: #f9f9f9;
+}
+
+.thread-reply {
+  margin-bottom: 10px;
+}
+
+.thread-toggle {
+  user-select: none;
+  display: flex;
+  /* border-bottom: 2px solid #ccc; */
+}
+
+.thread-toggle button {
+  flex: 1;
+  background-color: #d1d1d1 !important;
+  border: none;
+  font-size: 1em;
+  cursor: pointer;
+  text-align: center;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.thread-toggle button:hover {
+  background-color: #8e8e8e !important;
 }
 </style>
