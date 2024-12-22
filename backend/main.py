@@ -13,7 +13,6 @@ def index(path):
     if path.startswith('api/'):
         return "This API endpoint does not exist.", 404  # APIのエンドポイントが存在しない場合
 
-    print("Index route accessed")
     return render_template('index.html')  # Vueアプリのエントリーポイント
 
 if __name__ == '__main__':
