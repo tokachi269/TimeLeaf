@@ -1,97 +1,98 @@
 <template>
-
-  <div v-if="canDisplayPost" class="card">
-    <a :href="localPost.channelUrl" class="channel-name" target="_blank" rel="noopener noreferrer"> {{
-      localPost.channelName }} </a>
-    <div class="header">
-      <img :src="userImage" alt="User Image" class="user-image" />
-      <div class="user-info">
-        <span class="username">{{ userName }}</span>
-        <span class="username-en">{{ userNameEn }}</span>
+  <div class="timeline-card">
+    <div v-if="canDisplayPost" class="card">
+      <a :href="localPost.channelUrl" class="channel-name" target="_blank" rel="noopener noreferrer"> {{
+        localPost.channelName }} </a>
+      <div class="header">
+        <img :src="userImage" alt="User Image" class="user-image" />
+        <div class="user-info">
+          <span class="username">{{ userName }}</span>
+          <span class="username-en">{{ userNameEn }}</span>
+        </div>
       </div>
-    </div>
-    <div class="content-wrapper">
-      <div class="empty-space"></div>
-      <div class="content-area">
+      <div class="content-wrapper">
+        <div class="empty-space"></div>
+        <div class="content-area">
 
-        <div class="content" v-html="localPost.content"></div>
+          <div class="content" v-html="localPost.content"></div>
 
-        <!-- URLのサムネイル -->
-        <div v-if="thumbnailHtml" class="url-preview-container" v-html="thumbnailHtml"></div> <!-- サムネイル表示 -->
+          <!-- URLのサムネイル -->
+          <div v-if="thumbnailHtml" class="url-preview-container" v-html="thumbnailHtml"></div> <!-- サムネイル表示 -->
 
-        <!-- 画像一覧 -->
-        <div v-if="hasImage">
-          <div ref="imageGallery" class="image-gallery" :class="[setGalleryClass, { 'expanded': isExpanded }]">
-            <div v-for="(file, index) in visibleImages" :key="index" class="image-item">
-              <img :src="file.url" :alt="file.name" class="image" @click="openModal(index)" crossorigin="anonymous" />
+          <!-- 画像一覧 -->
+          <div v-if="hasImage">
+            <div ref="imageGallery" class="image-gallery" :class="[setGalleryClass, { 'expanded': isExpanded }]">
+              <div v-for="(file, index) in visibleImages" :key="index" class="image-item">
+                <img :src="file.url" :alt="file.name" class="image" @click="openModal(index)" crossorigin="anonymous" />
+              </div>
+              <div v-if="isModalOpen" class="modal" @click="closeModal">
+                <img :src="modalImageUrl" alt="High Quality Image" class="modal-image" crossorigin="anonymous" />
+              </div>
             </div>
-            <div v-if="isModalOpen" class="modal" @click="closeModal">
-              <img :src="modalImageUrl" alt="High Quality Image" class="modal-image" crossorigin="anonymous" />
+            <button v-if="shouldShowExpandButton" class="expand-button" @click="toggleExpanded">
+              <span class="expand-button-context">もっと見る</span>
+            </button>
+          </div>
+
+          <!-- リアクション一覧 -->
+          <div class="reaction-list">
+            <div v-for="reaction in reactions" :key="reaction.name" class="reaction-item"
+              :class="{ 'highlight': checkHighlight(reaction) }"
+              @mouseenter="showUserList(reaction, reaction.name, $event)" @mouseleave="hideUserList"
+              @click="insertOrDeleteReaction(reaction.name, localPost.ts, localPost.ts, true)"
+              @mousedown="handleReactionMouseDown(reaction, reaction.name, $event)" @mouseup="handleReactionMouseUp"
+              @touchstart="handleReactionMouseDown(reaction, reaction.name, $event)" @touchend="handleReactionMouseUp">
+              <span v-html="getEmojiForReaction(reaction.name)"></span>
+              <span class="reaction-count">{{ reaction.count }}</span>
             </div>
+            <div v-if="reactions.length != 0" @click="openEmojiPicker(this.localPost.ts, $event)" class="reaction-item">
+              <img src="./../assets/emoji-add.png" alt="Add Reaction" class="emoji-image">
+            </div>
+            <br>
           </div>
-          <button v-if="shouldShowExpandButton" class="expand-button" @click="toggleExpanded">
-            <span class="expand-button-context">もっと見る</span>
-          </button>
-        </div>
+          <!-- ユーザーポップアップ -->
+          <div v-if="isUserListVisible" class="user-popup"
+            :class="{ 'is-scrolling': isScrolling, 'is-tapped': isTapped }"
+            :style="{ top: popupPosition.top + 'px', left: popupPosition.left + 'px' }">
+            <!-- リアクション名を表示 -->
+            <div class="reaction-name">:{{ hoveredReactionName }}:</div>
+            <hr class="separator-line" />
+            <ul>
+              <li v-for="user in hoveredUsers" :key="user">{{ user }}</li>
+            </ul>
+          </div>
+          <!-- スレッド表示/非表示ボタン -->
+          <div v-if="replies && replies.length > 1" class="thread-container">
 
-        <!-- リアクション一覧 -->
-        <div class="reaction-list">
-          <div v-for="reaction in reactions" :key="reaction.name" class="reaction-item"
-            :class="{ 'highlight': checkHighlight(reaction) }"
-            @mouseenter="showUserList(reaction, reaction.name, $event)" @mouseleave="hideUserList"
-            @click="insertOrDeleteReaction(reaction.name, localPost.ts, localPost.ts, true)"
-            @mousedown="handleReactionMouseDown(reaction, reaction.name, $event)" @mouseup="handleReactionMouseUp"
-            @touchstart="handleReactionMouseDown(reaction, reaction.name, $event)" @touchend="handleReactionMouseUp">
-            <span v-html="getEmojiForReaction(reaction.name)"></span>
-            <span class="reaction-count">{{ reaction.count }}</span>
-          </div>
-          <div v-if="reactions.length != 0" @click="openEmojiPicker(this.localPost.ts, $event)" class="reaction-item">
-            <img src="./../assets/emoji-add.png" alt="Add Reaction" class="emoji-image">
-          </div>
-          <br>
-        </div>
-        <!-- ユーザーポップアップ -->
-        <div v-if="isUserListVisible" class="user-popup" :class="{ 'is-scrolling': isScrolling, 'is-tapped': isTapped }"
-          :style="{ top: popupPosition.top + 'px', left: popupPosition.left + 'px' }">
-          <!-- リアクション名を表示 -->
-          <div class="reaction-name">:{{ hoveredReactionName }}:</div>
-          <hr class="separator-line" />
-          <ul>
-            <li v-for="user in hoveredUsers" :key="user">{{ user }}</li>
-          </ul>
-        </div>
-        <!-- スレッド表示/非表示ボタン -->
-        <div v-if="replies && replies.length > 1" class="thread-container">
-
-          <div class="thread-toggle">
-            <button @click="toggleThread" v-if="!showThread">スレッドを表示</button>
-            <button @click="toggleThread" v-if="showThread">スレッドを閉じる</button>
-          </div>
-          <!-- スレッドの内容を表示 -->
-          <transition name="slide-fade">
-            <div v-if="showThread && replies && replies.length > 1">
-              <div class="thread-content">
-                <div v-for="(reply, index) in replies" :key="reply.ts" class="thread-reply">
-                  <div v-if="index > 0">
-                    <div class="header">
-                      <img :src="userImage" alt="User Image" class="user-image user-reply-image" />
-                      <div class="user-info">
-                        <span class="username">{{ reply.user_real_name }}</span>
-                        <span class="username-en">{{ reply.user_name }}</span>
+            <div class="thread-toggle">
+              <button @click="toggleThread" v-if="!showThread">スレッドを表示</button>
+              <button @click="toggleThread" v-if="showThread">スレッドを閉じる</button>
+            </div>
+            <!-- スレッドの内容を表示 -->
+            <transition @after-leave="adjustScroll">
+              <div v-if="showThread && replies && replies.length > 1">
+                <div class="thread-content">
+                  <div v-for="(reply, index) in replies" :key="reply.ts" class="thread-reply">
+                    <div v-if="index > 0">
+                      <div class="header">
+                        <img :src="userImage" alt="User Image" class="user-image user-reply-image" />
+                        <div class="user-info">
+                          <span class="username">{{ reply.user_real_name }}</span>
+                          <span class="username-en">{{ reply.user_name }}</span>
+                        </div>
                       </div>
-                    </div>
-                    <div class="content-wrapper">
-                      <div class="thread-empty-space"></div>
-                      <div class="content-area">
-                        <div class="content" v-html="reply.text"></div>
+                      <div class="content-wrapper">
+                        <div class="thread-empty-space"></div>
+                        <div class="content-area">
+                          <div class="content" v-html="reply.text"></div>
+                        </div>
                       </div>
-                    </div>
 
-                    <!-- 画像一覧 -->
-                    <div v-if="reply.files">
-                      画像表示は現在未対応です
+                      <!-- 画像一覧 -->
+                      <div v-if="reply.files">
+                        画像表示は現在未対応です
 
-                      <!-- <div ref="imageGallery" class="image-gallery"
+                        <!-- <div ref="imageGallery" class="image-gallery"
                         :class="[setGalleryClass, { 'expanded': isExpanded }]">
                         <div v-for="(file, index) in  reply.files.slice(0, 4)" :key="index" class="image-item">
                           <img :src="fetchImageSrcReply(file, true)" :alt="file.name" class="image" @click="openModal(index)" crossorigin="anonymous" />
@@ -100,51 +101,53 @@
                       <button v-if="shouldShowExpandButton" class="expand-button" @click="toggleExpanded">
                         <span class="expand-button-context">もっと見る</span>
                       </button> -->
-                    </div>
-                    <!-- リアクション一覧 -->
-                    <div class="reaction-list">
-                      <div v-for="reaction in reply.reactions" :key="reaction.name" class="reaction-item"
-                        :class="{ 'highlight': checkHighlight(reaction) }"
-                        @mouseenter="showUserList(reaction, reaction.name, $event)" @mouseleave="hideUserList"
-                        @click="insertOrDeleteReaction(reaction.name, reply.thread_ts, reply.ts, true)"
-                        @mousedown="handleReactionMouseDown(reaction.name, $event)" @mouseup="handleReactionMouseUp"
-                        @touchstart="handleReactionMouseDown(reaction.name, $event)" @touchend="handleReactionMouseUp">
-                        <span v-html="getEmojiForReaction(reaction.name)"></span>
-                        <span class="reaction-count">{{ reaction.count }}</span>
                       </div>
-                      <div v-if="reactions.length != 0" @click="openEmojiPicker(reply.ts, $event)"
-                        class="reaction-item">
-                        <img src="./../assets/emoji-add.png" alt="Add Reaction" class="emoji-image">
+                      <!-- リアクション一覧 -->
+                      <div class="reaction-list">
+                        <div v-for="reaction in reply.reactions" :key="reaction.name" class="reaction-item"
+                          :class="{ 'highlight': checkHighlight(reaction) }"
+                          @mouseenter="showUserList(reaction, reaction.name, $event)" @mouseleave="hideUserList"
+                          @click="insertOrDeleteReaction(reaction.name, reply.thread_ts, reply.ts, true)"
+                          @mousedown="handleReactionMouseDown(reaction.name, $event)" @mouseup="handleReactionMouseUp"
+                          @touchstart="handleReactionMouseDown(reaction.name, $event)"
+                          @touchend="handleReactionMouseUp">
+                          <span v-html="getEmojiForReaction(reaction.name)"></span>
+                          <span class="reaction-count">{{ reaction.count }}</span>
+                        </div>
+                        <div v-if="reactions.length != 0" @click="openEmojiPicker(reply.ts, $event)"
+                          class="reaction-item">
+                          <img src="./../assets/emoji-add.png" alt="Add Reaction" class="emoji-image">
+                        </div>
+                        <br>
                       </div>
-                      <br>
                     </div>
                   </div>
                 </div>
+                <div class="thread-toggle">
+                  <button @click="toggleThread">スレッドを閉じる</button>
+                </div>
               </div>
-              <div class="thread-toggle">
-                <button @click="toggleThread">スレッドを閉じる</button>
-              </div>
-            </div>
-          </transition>
+            </transition>
 
-        </div>
-        <div class="detail-list">
-          <div v-if="reactions.length == 0" @click="openEmojiPicker($event)" class="add-reaction-image">
-            <img src="./../assets/emoji-add.png" alt="Add Reaction" class="emoji-image">
           </div>
-          <div @click="showReplyBox = true" class="add-reaction-image">
-            <img src="./../assets/reply.png" alt="Add Reaction" class="emoji-image">
+          <div class="detail-list">
+            <div v-if="reactions.length == 0" @click="openEmojiPicker($event)" class="add-reaction-image">
+              <img src="./../assets/emoji-add.png" alt="Add Reaction" class="emoji-image">
+            </div>
+            <div @click="showReplyBox = true" class="add-reaction-image">
+              <img src="./../assets/reply.png" alt="Add Reaction" class="emoji-image">
+            </div>
+            <span class="date">{{ post.date }}</span>
           </div>
-          <span class="date">{{ post.date }}</span>
-        </div>
-        <!-- テキストボックスと閉じるボタン -->
-        <div v-if="showReplyBox" class="reply-box">
-          <textarea v-model="replyText" placeholder="返信を入力..."></textarea>
-          <div class="reply-button-list">
-            <button @click="fetchAddReply" class="button-submit reply-box-color">送信</button>
-            <input type="checkbox" id="replyBroadcast" v-model="replyBroadcast" />
-            <label for="replyBroadcast">チャンネルにも投稿</label>
-            <button @click="showReplyBox = false" class="button-submit reply-close-box-color">閉じる</button>
+          <!-- テキストボックスと閉じるボタン -->
+          <div v-if="showReplyBox" class="reply-box">
+            <textarea v-model="replyText" placeholder="返信を入力..."></textarea>
+            <div class="reply-button-list">
+              <button @click="fetchAddReply" class="button-submit reply-box-color">送信</button>
+              <input type="checkbox" id="replyBroadcast" v-model="replyBroadcast" />
+              <label for="replyBroadcast">チャンネルにも投稿</label>
+              <button @click="showReplyBox = false" class="button-submit reply-close-box-color">閉じる</button>
+            </div>
           </div>
         </div>
       </div>
@@ -244,7 +247,8 @@ export default {
     //スレッド投稿の場合は表示しないが、スレッドブロードキャストの場合は表示する
     //thread_ts がある、親投稿じゃない、スレッドブロードキャストじゃないときにスレッド内の投稿と判断
     this.message = this.replies?.find((msg) => msg.ts === this.localPost.ts);
-    this.canDisplayPost = !(this.message && this.message.thread_ts && this.message.thread_ts != this.message.ts && this.message?.subtype !== "thread_broadcast");
+    this.canDisplayPost = !this.message ? false : !(this.message && this.message.thread_ts && this.message.thread_ts != this.message.ts && this.message?.subtype !== "thread_broadcast");
+
     if (this.message && this.message.thread_ts && this.message.thread_ts == this.message.ts) {
       console.log(this.message);
       console.log(this.replies);
@@ -285,6 +289,33 @@ export default {
     },
   },
   methods: {
+    adjustScroll() {
+      this.$nextTick(() => {
+        const cardElement = this.$el;
+        const targetPosition = cardElement.getBoundingClientRect().top + window.scrollY;
+        const startPosition = window.scrollY;
+        const distance = targetPosition - startPosition;
+        const duration = 150; // スクロールの速度（ミリ秒）
+        let startTime = null;
+
+        function animation(currentTime) {
+          if (startTime === null) startTime = currentTime;
+          const timeElapsed = currentTime - startTime;
+          const run = easeInOutQuad(timeElapsed, startPosition, distance, duration);
+          window.scrollTo(0, run);
+          if (timeElapsed < duration) requestAnimationFrame(animation);
+        }
+
+        function easeInOutQuad(t, b, c, d) {
+          t /= d / 2;
+          if (t < 1) return c / 2 * t * t + b;
+          t--;
+          return -c / 2 * (t * (t - 2) - 1) + b;
+        }
+
+        requestAnimationFrame(animation);
+      });
+    },
     toggleThread() {
       this.showThread = !this.showThread;
     },
@@ -406,7 +437,7 @@ export default {
                 <iframe style="border-radius:12px" src="https://open.spotify.com/embed/${url.includes("track") ? "track" : url.includes("album") ? "album" : "playlist"}/${trackId}?utm_source=generator" width="100%" height="352" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
               `;
           }
-        } else if (url.includes("youtu.be") || url.includes("youtube.com")) {
+        } else if (url.includes("youtube.com")) {
           const videoId = this.extractTrackId(url);
           if (videoId) {
             // YouTube埋め込み用HTMLを作成
@@ -414,7 +445,18 @@ export default {
                 <iframe width="100%" height="315" src="https://www.youtube.com/embed/${videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
               `;
           }
-        }
+        } else if (url.includes("youtu.be")) {
+        //   const urlObj = new URL(url);
+        //   const videoId = urlObj.pathname.split('/')[1];
+        //   const siValue = urlObj.searchParams.get('si');
+
+        //   if (siValue) {
+        //     // YouTube埋め込み用HTMLを作成
+        //     this.thumbnailHtml = `
+        //         <iframe width="100%" height="315" src="https://www.youtube.com/embed/${videoId}?si=${siValue}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+        //       `;
+        //   }
+         }
       });
     },
     extractTrackId(url) {
@@ -479,6 +521,7 @@ export default {
         }).catch(error => {
           this.replies = null;
           console.error('Error fetching data:', error);
+          return;
         });
         this.replies = await toRaw(response);
 
@@ -1220,7 +1263,7 @@ export default {
 
 .thread-content {
   flex: 1;
-  padding: 10px;
+  padding: 5px;
   border-top: 1px solid #ccc;
   background-color: #f9f9f9;
 }
