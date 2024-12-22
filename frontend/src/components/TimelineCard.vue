@@ -888,14 +888,6 @@ export default {
   display: flex;
 }
 
-.user-reply-image {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  margin-right: 10px;
-  display: flex;
-}
-
 .user-info {
   flex-grow: 1;
   display: flex;
@@ -1236,11 +1228,20 @@ export default {
   margin: 10px;
 }
 
+.user-reply-image {
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  margin-right: 5px;
+  display: flex;
+}
+
+
 .thread-empty-space {
-  width: 20px;
+  width: 25px;
   flex-shrink: 0;
   border-radius: 50%;
-  margin-right: 10px;
+  margin-right: 5px;
 }
 
 .thread-reply {
@@ -1280,15 +1281,16 @@ export default {
 
 .thread-toggle button {
   flex: 1;
-  background-color: #d1d1d1 !important;
+  padding: 5px;
+  background-color: #e9e9e9 !important;
   border: none;
-  font-size: 1em;
+  font-size: 0.9em;
   cursor: pointer;
   text-align: center;
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .thread-toggle button:hover {
-  background-color: #8e8e8e !important;
+  background-color: #d2d2d2 !important;
 }
 </style>

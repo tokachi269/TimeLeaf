@@ -128,38 +128,40 @@ export default {
       this.isFollowing = this.getCookie('isFollowing')?.toLowerCase() === "true";
 
       // FlaskサーバーからSlackメッセージを取得
-      const channels = await fetch(`${API_BASE_URL}/api/v1/slack/timesChannels`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${this.accessToken}`
-        }
-      }).then(response => {
-        if (!response.ok) {
+      try {
+        // fetchを同時並行で実行
+        const [channelsResponse, emojisResponse] = await Promise.all([
+          fetch(`${API_BASE_URL}/api/v1/slack/timesChannels`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${this.accessToken}`
+            }
+          }),
+          fetch(`${API_BASE_URL}/api/v2/slack/emojis`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${this.accessToken}`
+            }
+          })
+        ]);
+
+        if (!channelsResponse.ok || !emojisResponse.ok) {
           throw new Error('Network response was not ok');
         }
-        return response.json();
-      }).catch(error => {
+
+        // チャンネル一覧が取得できるまで待機
+        this.channels = await channelsResponse.json();
+
+        // 絵文字が取得できるまで待機
+        this.emojiMap = await emojisResponse.json();
+
+        console.log("Channels:", this.channels);
+        console.log("Emojis:", this.emojiMap);
+      } catch (error) {
         console.error('Error fetching data:', error);
-      });
-      console.log("channelMap:", channels);
-      this.channels = channels;
-      // FlaskサーバーからSlacke絵文字を取得
-      const emojis = await fetch(`${API_BASE_URL}/api/v2/slack/emojis`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${this.accessToken}`
-        }
-      }).then(response => {
-        if (!response.ok) {
-          throw new Error('Network response was not ok');
-        }
-        return response.json();
-      }).catch(error => {
-        console.error('Error fetching data:', error);
-      });
-      this.emojiMap = emojis;
-      this.emojiIndex = new EmojiIndex(data, { custom: emojis, recent: this.recentEmojis });
-      console.log("emojiMap:", this.emojiMap);
+      }
+      //console.log("emojiMap:", this.emojiMap);
+      this.emojiIndex = new EmojiIndex(data, { custom: this.emojiMap, recent: this.recentEmojis });
       // フォロー中のチャンネルがない場合
 
       this.fetchPosts();

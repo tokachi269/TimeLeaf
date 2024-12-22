@@ -19,7 +19,7 @@ h3 {
   margin: 10px 0 0;
 }
 h1 {
-  font-size: medium;
+  font-size: 1em;
   margin: 10px;
   margin-bottom:  20px;
   font-weight: lighter;
