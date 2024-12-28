@@ -294,14 +294,57 @@ export default {
   },
 
   methods: {
+    replaceHtmlTag(text) {
+      const blocks = this.localPost.content.blocks;
+      let codes = [];
+
+      blocks?.forEach(block => {
+        block.elements.forEach(element => {
+          if (element.elements) {
+            let beforeTexts = '';
+            let afterTexts = '';
+            let hasCode = false;
+
+            element.elements.forEach(subElement => {
+              if (subElement.style && subElement.style.code) {
+                hasCode = true;
+                afterTexts = subElement.text;
+              }
+            });
+            if (hasCode) {
+              element.elements.forEach(subElement => {
+                if (subElement.style && subElement.style.code) {
+                  beforeTexts += subElement.text;
+                  afterTexts += '`' + subElement.text + '`';
+                } else {
+                  beforeTexts += subElement.text;
+                  afterTexts += subElement.text;
+                }
+              });
+            }
+            if (hasCode) {
+              codes.push({beforeTexts, afterTexts});
+            }
+          }
+        });
+      });
+
+      // beforeTextsをafterTextsに置換
+      codes.forEach(({ beforeTexts, afterTexts }) => {
+        text = text.replace(beforeTexts, afterTexts);
+      });
+
+      return text;
+    },
     compiledMarkdown(text) {
       if (!text) {
         return '';
       }
-      this.replaceHtmlTag(text); 
+      this.getUrls(text);
       this.extractThumbnail();
+      let markdownText = this.replaceHtmlTag(text);
 
-      this.formattingContext(text);
+      this.formattingContext(markdownText);
 
       // Slackのmrkdwn形式をMarkdownに変換
       const slackToMarkdown = (text) => {
@@ -313,7 +356,7 @@ export default {
           .replace(/```([^`]+)```/g, '```\n$1\n```')// ```code block```
           .replace(/<([^|]+)\|([^>]+)>/g, '[$2]($1)');  // <url|description> -> [description](url)
       };
-      let markdownText = slackToMarkdown(text);
+      markdownText = slackToMarkdown(markdownText);
 
       // カスタムレンダラーを設定
       const renderer = new marked.Renderer();
@@ -325,7 +368,10 @@ export default {
       renderer.codespan = (code) => {
         return `<code class="inline-code">${code.text}</code>`;
       };
-      markdownText =  marked(markdownText, { renderer });
+      renderer.blockquote = (code) => {
+        return `<blockquote class="blockquote-line">${code.text}</blockquote>`;
+      };
+      markdownText = marked(markdownText, { renderer });
       // 既存のHTMLタグを壊さないようにするために、HTMLタグを元に戻す
       const unescapeHtml = (safe) => {
         return safe
@@ -366,20 +412,20 @@ export default {
       return formattedContent;
 
     },
-    replaceHtmlTag(content) {
+    getUrls(content) {
       // 正規表現: URL単体またはラベル付きURLにマッチ
       const pattern = /<((https?:\/\/[^|>]+)\|([^>]+))>|<(https?:\/\/[^>]+)>/g;
 
       const urls = [];
-        let match;
-        while ((match = pattern.exec(content)) !== null) {
-          if (match[2] && match[3]) {
-            urls.push({ url: match[2], description: match[3] });
-          } else if (match[4]) {
-            urls.push({ url: match[4], description: match[4] });
-          }
+      let match;
+      while ((match = pattern.exec(content)) !== null) {
+        if (match[2] && match[3]) {
+          urls.push({ url: match[2], description: match[3] });
+        } else if (match[4]) {
+          urls.push({ url: match[4], description: match[4] });
         }
-        this.urls = urls;
+      }
+      this.urls = urls;
     },
     adjustScroll() {
       this.$nextTick(() => {
@@ -1390,10 +1436,27 @@ export default {
 }
 
 ::v-deep .inline-code {
-  border: 1px solid red;
-  color: red;
+  border: 1px solid rgb(163 163 163);
+  color: #ff2222;
   padding: 2px 4px;
   border-radius: 4px;
+  background-color: #bdbdbd42 !important;
+}
+
+.blockquote-line {
+  display: block;
+  margin-block-start: 1em;
+  margin-block-end: 1em;
+  margin-inline-start: 40px;
+  margin-inline-end: 40px;
+}
+
+/* 引用ブロックのスタイルを追加 */
+::v-deep blockquote {
+  border-left: 4px solid #ccc;
+  padding: 10px 20px;
+  margin: 10px 0;
   background-color: #f9f9f9;
+  color: #555;
 }
 </style>
