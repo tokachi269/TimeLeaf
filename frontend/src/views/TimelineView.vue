@@ -71,7 +71,6 @@ export default {
       isScrolling: false,
       isTapped: false, // タップ状態を管理
       recentEmojis: ["shochi", "arigatougozaimasu", "yoroshikuonegaishimasu", "参加", "otsu", "すごい", "お大事に", "sumi", "さすが", "お疲れ様でした", "munen", "素敵", "yoros", "わくわく", "pikachu", "iine", "異議なし", "おめでとうございます"],//, "おつかれさま", "了解です"
-      urls: [],
       fetchCount: 0,
       showScrollToTop: false // スクロールの一番上に移動するボタンの表示を管理
 
@@ -226,22 +225,8 @@ export default {
 
             // Slackメッセージをタイムライン用にフォーマット
             const newPosts = messages.matches.map((msg, i) => {
-              // メッセージ内容に含まれる絵文字コードを画像URLまたはUnicodeに変換
-              let formattedContent = msg.text.replace(/:([^\s:]+):/g, (match, emojiName) => {
-                // emojiMap から画像URLを取得し、該当する画像タグに変換
-                const emoji = this.emojiMap.find(e => e.name === emojiName);
-                if (emoji) {
-                  return `<img src="${emoji.imageUrl}" alt="${emoji.name}" class="emoji-image" @contextmenu="preventContextMenu">`;
-                }
 
-                // emojiMapに存在しない場合、unicodeEmojisで検索
-                const unicodeEmoji = unicodeEmojis.find(emoji => emoji?.short_name === emojiName);
-                if (unicodeEmoji) {
-                  return `<span class="emoji-image">${this.convertToHtmlEntity(unicodeEmoji.unified)}</span>`;  // Unicode絵文字を返す
-                }
-
-                return match;  // 見つからなければ元の文字列を返す
-              });
+              let formattedContent = msg;// this.formattingContext(msg);
               let isFollowed = false;
               if (this.channels.followed_channels.find(channel => channel.name === msg.channel.name)) {
                 isFollowed = true;
@@ -250,13 +235,9 @@ export default {
               // チャンネルの創設者と と メッセージのuserIDが一致するかをチェック
               const channel = this.channels.followed_channels.find(channel => channel.id === msg.channel.id);
               const isMaster = channel ? channel.creator === msg.user : false;
-              formattedContent = formattedContent.replace(/\n/g, '<br>');
               this.urls = [];
 
-              // 正規表現でマッチ
-              formattedContent = this.replaceHtmlTag(formattedContent.replace(/<@(\w+)\s*\|([^\\>]+)>/g, (_, id, name) => {
-                return `<span class="mention" data-id="${id}">@${name}</span>`;
-              }));
+
               return {
                 accessedName: this.accessedName,
                 accessedId: this.accessedId,
@@ -290,6 +271,31 @@ export default {
           this.loading = false
         }
       }
+    },
+    formattingContext(context) {
+      // メッセージ内容に含まれる絵文字コードを画像URLまたはUnicodeに変換
+      let formattedContent = context.text.replace(/:([^\s:]+):/g, (match, emojiName) => {
+        // emojiMap から画像URLを取得し、該当する画像タグに変換
+        const emoji = this.emojiMap.find(e => e.name === emojiName);
+        if (emoji) {
+          return `<img src="${emoji.imageUrl}" alt="${emoji.name}" class="emoji-image" @contextmenu="preventContextMenu">`;
+        }
+
+        // emojiMapに存在しない場合、unicodeEmojisで検索
+        const unicodeEmoji = unicodeEmojis.find(emoji => emoji?.short_name === emojiName);
+        if (unicodeEmoji) {
+          return `<span class="emoji-image">${this.convertToHtmlEntity(unicodeEmoji.unified)}</span>`;  // Unicode絵文字を返す
+        }
+
+        return match;  // 見つからなければ元の文字列を返す
+      });
+      formattedContent = formattedContent.replace(/\n/g, '<br>');
+      // 正規表現でマッチ
+      formattedContent = this.replaceHtmlTag(formattedContent.replace(/<@(\w+)\s*\|([^\\>]+)>/g, (_, id, name) => {
+        return `<span class="mention" data-id="${id}">@${name}</span>`;
+      }));
+      return formattedContent;
+
     },
     replaceHtmlTag(content) {
       // 正規表現: URL単体またはラベル付きURLにマッチ
@@ -423,14 +429,16 @@ export default {
       this.selectedThreadTs = threadTs;
       this.showEmojiPicker = true;
       // ホバーした要素の位置を取得
-      const targetElement = event.currentTarget;
-      const rect = targetElement.getBoundingClientRect();
+      const targetElement = event?.currentTarget;
+      if (targetElement) {
+        const rect = targetElement.getBoundingClientRect();
 
-      // Pickerの位置を設定
-      this.pickerPosition = {
-        top: rect.bottom + window.scrollY + 10, // スクロール量を考慮
-      };
+        // Pickerの位置を設定
+        this.pickerPosition = {
+          top: rect.bottom + window.scrollY + 10, // スクロール量を考慮
+        };
 
+      }
       // 画面からはみ出ないように調整
       const pickerHeight = 420; // 絵文字ピッカーの高さ
       const pickerWidth = 355; // 絵文字ピッカーの幅
@@ -505,7 +513,6 @@ export default {
 .timeline {
   max-width: 600px;
   margin: auto;
-  padding: 10px;
 }
 
 .loading-trigger {

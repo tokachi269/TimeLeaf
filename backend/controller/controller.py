@@ -293,7 +293,7 @@ def get_slack_reactions_v1():
         res = response.json() 
         if response.json().get("ok"):
             emojis = jsonify(res.get("emoji"))
-            emojis.headers['Cache-Control'] = 'public, max-age=1800' # 30 分間キャッシュ
+            emojis.headers['Cache-Control'] = 'public, max-age=3600' # 60 分間キャッシュ
             return emojis
         else:
             return jsonify(res)
@@ -311,7 +311,7 @@ def get_slack_reactions_v2():
 
     if reaction_cache:
         res = jsonify(reaction_cache)
-        res.headers['Cache-Control'] = 'public, max-age=1800' # 30 分間キャッシュ
+        res.headers['Cache-Control'] = 'public, max-age=3600' # 60 分間キャッシュ
         return res
     else:
         return jsonify({"error": "Failed to fetch emoji"}), 500
@@ -333,7 +333,7 @@ def get_slack_users_profile():
         res = response.json() 
         if response.json().get("ok"):
             profile = jsonify(res.get("profile"))
-            profile.headers['Cache-Control'] = 'public, max-age=1800'  # 30 分間キャッシュ
+            profile.headers['Cache-Control'] = 'public, max-age=3600'  # 60 分間キャッシュ
             return profile
         else:
             return jsonify(res)
@@ -440,8 +440,9 @@ def get_slack_messages_reply():
                             updated_users.append({"id":user_id, "name":user_real_name })
                         # users リストを更新
                         reaction["users"] = updated_users
-
-            return jsonify(message), 200
+            res = jsonify(message)
+            res.headers['Cache-Control'] = 'public, max-age=60'  # 1 分間キャッシュ
+            return res, 200
         else:
             return jsonify(res), 400
     else:
@@ -469,7 +470,7 @@ def get_image():
         flask_response = Response(response.content)
         flask_response.headers['Content-Type'] = type
         flask_response.headers['Content-Length'] = str(len(response.content))
-        flask_response.headers['Cache-Control'] = 'public, max-age=60'  # 1 分間キャッシュ
+        flask_response.headers['Cache-Control'] = 'public, max-age=3600'  # 60 分間キャッシュ
 
         return flask_response
     else:

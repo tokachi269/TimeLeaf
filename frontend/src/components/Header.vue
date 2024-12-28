@@ -1,6 +1,6 @@
 <template>
   <div class="hello">
-    <h1>{{ msg }}</h1>
+    <h1>🎍{{ msg }}🎍</h1>
   </div>
 </template>
 
@@ -19,7 +19,7 @@ h3 {
   margin: 10px 0 0;
 }
 h1 {
-  font-size: 1em;
+  font-size: medium;
   margin: 10px;
   margin-bottom:  20px;
   font-weight: lighter;

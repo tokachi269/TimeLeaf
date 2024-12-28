@@ -14,7 +14,7 @@
         <div class="empty-space"></div>
         <div class="content-area">
 
-          <div class="content" v-html="localPost.content"></div>
+          <div class="content" v-html="formattingContext(compiledMarkdown(localPost.content.text))"></div>
 
           <!-- URLのサムネイル -->
           <div v-if="thumbnailHtml" class="url-preview-container" v-html="thumbnailHtml"></div> <!-- サムネイル表示 -->
@@ -75,7 +75,7 @@
                   <div v-for="(reply, index) in replies" :key="reply.ts" class="thread-reply">
                     <div v-if="index > 0">
                       <div class="header">
-                        <img :src="userImage" alt="User Image" class="user-image user-reply-image" />
+                        <img :src="reply.user_img_src" alt="User Image" class="user-image user-reply-image" />
                         <div class="user-info">
                           <span class="username">{{ reply.user_real_name }}</span>
                           <span class="username-en">{{ reply.user_name }}</span>
@@ -84,7 +84,7 @@
                       <div class="content-wrapper">
                         <div class="thread-empty-space"></div>
                         <div class="content-area">
-                          <div class="content" v-html="reply.text"></div>
+                          <div class="content" v-html="compiledMarkdown(reply.text)"></div>
                         </div>
                       </div>
 
@@ -160,6 +160,9 @@ import { toRaw } from 'vue';
 import { nextTick } from 'vue';
 import { API_BASE_URL } from '@/config.js';
 import emitter from '@/eventBus';
+import { marked } from 'marked';
+import hljs from 'highlight.js';
+import 'highlight.js/styles/default.css';
 
 export default {
   props: {
@@ -181,6 +184,7 @@ export default {
       localPost: toRaw(this.post), // propsの値をdataにコピーして保持
       replies: [],
       images: [],
+      urls: [],
       reactions: [],
       message: {},
       userName: "",
@@ -288,7 +292,95 @@ export default {
       return !this.isExpanded && this.showExpandButton && isMultipleImages;
     },
   },
+
   methods: {
+    compiledMarkdown(text) {
+      if (!text) {
+        return '';
+      }
+      this.replaceHtmlTag(text); 
+      this.extractThumbnail();
+
+      this.formattingContext(text);
+
+      // Slackのmrkdwn形式をMarkdownに変換
+      const slackToMarkdown = (text) => {
+        return text
+          .replace(/\*(.*?)\*/g, '**$1**') // *bold* -> **bold**
+          .replace(/_(.*?)_/g, '_$1_') // _italic_ -> _italic_
+          .replace(/~(.*?)~/g, '~~$1~~') // ~strike~ -> ~~strike~~
+          .replace(/`([^`]+)`/g, '`$1`') // `inline code`
+          .replace(/```([^`]+)```/g, '```\n$1\n```')// ```code block```
+          .replace(/<([^|]+)\|([^>]+)>/g, '[$2]($1)');  // <url|description> -> [description](url)
+      };
+      let markdownText = slackToMarkdown(text);
+
+      // カスタムレンダラーを設定
+      const renderer = new marked.Renderer();
+      renderer.code = (code, lang) => {
+        const highlighted = lang ? hljs.highlight(code.text, { language: lang }).value : hljs.highlightAuto(code.text).value;
+        const languageClass = lang ? `hljs ${lang}` : 'hljs';
+        return `<pre><code class="hljs ${languageClass}">${highlighted}</code></pre>`;
+      };
+      renderer.codespan = (code) => {
+        return `<code class="inline-code">${code.text}</code>`;
+      };
+      markdownText =  marked(markdownText, { renderer });
+      // 既存のHTMLタグを壊さないようにするために、HTMLタグを元に戻す
+      const unescapeHtml = (safe) => {
+        return safe
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&amp;/g, '&')
+          .replace(/&quot;/g, '"')
+          .replace(/&#039;/g, "'");
+      };
+      markdownText = unescapeHtml(markdownText);
+
+      console.log(text);
+      console.log(markdownText);
+      return markdownText;
+    },
+
+    formattingContext(context) {
+      // メッセージ内容に含まれる絵文字コードを画像URLまたはUnicodeに変換
+      let formattedContent = context.replace(/:([^\s:]+):/g, (match, emojiName) => {
+        // emojiMap から画像URLを取得し、該当する画像タグに変換
+        const emoji = this.emojiMap.find(e => e.name === emojiName);
+        if (emoji) {
+          return `<img src="${emoji.imageUrl}" alt="${emoji.name}" class="emoji-image" @contextmenu="preventContextMenu">`;
+        }
+
+        // emojiMapに存在しない場合、unicodeEmojisで検索
+        const unicodeEmoji = this.unicodeEmojis.find(emoji => emoji?.short_name === emojiName);
+        if (unicodeEmoji) {
+          return `<span class="emoji-image">${this.convertToHtmlEntity(unicodeEmoji.unified)}</span>`;  // Unicode絵文字を返す
+        }
+
+        return match;  // 見つからなければ元の文字列を返す
+      });
+      // 正規表現でマッチ
+      formattedContent = (formattedContent.replace(/<@(\w+)\s*\|([^\\>]+)>/g, (_, id, name) => {
+        return `<span class="mention" data-id="${id}">@${name}</span>`;
+      }));
+      return formattedContent;
+
+    },
+    replaceHtmlTag(content) {
+      // 正規表現: URL単体またはラベル付きURLにマッチ
+      const pattern = /<((https?:\/\/[^|>]+)\|([^>]+))>|<(https?:\/\/[^>]+)>/g;
+
+      const urls = [];
+        let match;
+        while ((match = pattern.exec(content)) !== null) {
+          if (match[2] && match[3]) {
+            urls.push({ url: match[2], description: match[3] });
+          } else if (match[4]) {
+            urls.push({ url: match[4], description: match[4] });
+          }
+        }
+        this.urls = urls;
+    },
     adjustScroll() {
       this.$nextTick(() => {
         const cardElement = this.$el;
@@ -428,35 +520,35 @@ export default {
           return;
         }
       }
-      this.localPost.urls.forEach(url => {
-        if (url.includes("open.spotify.com")) {
-          const trackId = this.extractTrackId(url);
+      this.urls.forEach(url => {
+        if (url.url?.includes("open.spotify.com")) {
+          const trackId = this.extractTrackId(url.url);
           if (trackId) {
             // サムネイル用HTMLを作成
             this.thumbnailHtml = `
-                <iframe style="border-radius:12px" src="https://open.spotify.com/embed/${url.includes("track") ? "track" : url.includes("album") ? "album" : "playlist"}/${trackId}?utm_source=generator" width="100%" height="352" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
+                <iframe style="border-radius:12px" src="https://open.spotify.com/embed/${url.url?.includes("track") ? "track" : url.url?.includes("album") ? "album" : "playlist"}/${trackId}?utm_source=generator" width="100%" height="352" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
               `;
           }
-        } else if (url.includes("youtube.com")) {
-          const videoId = this.extractTrackId(url);
+        } else if (url.url?.includes("youtube.com")) {
+          const videoId = this.extractTrackId(url.url);
           if (videoId) {
             // YouTube埋め込み用HTMLを作成
             this.thumbnailHtml = `
                 <iframe width="100%" height="315" src="https://www.youtube.com/embed/${videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
               `;
           }
-        } else if (url.includes("youtu.be")) {
-        //   const urlObj = new URL(url);
-        //   const videoId = urlObj.pathname.split('/')[1];
-        //   const siValue = urlObj.searchParams.get('si');
+        } else if (url.url?.includes("youtu.be")) {
+          //   const urlObj = new URL(url);
+          //   const videoId = urlObj.pathname.split('/')[1];
+          //   const siValue = urlObj.searchParams.get('si');
 
-        //   if (siValue) {
-        //     // YouTube埋め込み用HTMLを作成
-        //     this.thumbnailHtml = `
-        //         <iframe width="100%" height="315" src="https://www.youtube.com/embed/${videoId}?si=${siValue}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-        //       `;
-        //   }
-         }
+          //   if (siValue) {
+          //     // YouTube埋め込み用HTMLを作成
+          //     this.thumbnailHtml = `
+          //         <iframe width="100%" height="315" src="https://www.youtube.com/embed/${videoId}?si=${siValue}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+          //       `;
+          //   }
+        }
       });
     },
     extractTrackId(url) {
@@ -930,6 +1022,7 @@ export default {
   justify-content: space-between;
   margin-right: 20px;
   height: auto;
+  font-size: 0.9em;
 }
 
 .content {
@@ -1225,7 +1318,9 @@ export default {
 }
 
 .thread-container {
-  margin: 10px;
+  margin-top: 10px;
+  margin-bottom: 10px;
+
 }
 
 .user-reply-image {
@@ -1292,5 +1387,13 @@ export default {
 
 .thread-toggle button:hover {
   background-color: #d2d2d2 !important;
+}
+
+::v-deep .inline-code {
+  border: 1px solid red;
+  color: red;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background-color: #f9f9f9;
 }
 </style>
