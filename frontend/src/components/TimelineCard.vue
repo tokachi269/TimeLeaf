@@ -308,7 +308,6 @@ export default {
             element.elements.forEach(subElement => {
               if (subElement.style && subElement.style.code) {
                 hasCode = true;
-                afterTexts = subElement.text;
               }
             });
             if (hasCode) {
