@@ -75,7 +75,7 @@
                   <div v-for="(reply, index) in replies" :key="reply.ts" class="thread-reply">
                     <div v-if="index > 0">
                       <div class="header">
-                        <img :src="reply.user_img_src" alt="User Image" class="user-image user-reply-image" />
+                        <img :src="reply.user_image" alt="User Image" class="user-image user-reply-image" />
                         <div class="user-info">
                           <span class="username">{{ reply.user_real_name }}</span>
                           <span class="username-en">{{ reply.user_name }}</span>
@@ -84,7 +84,7 @@
                       <div class="content-wrapper">
                         <div class="thread-empty-space"></div>
                         <div class="content-area">
-                          <div class="content" v-html="compiledMarkdown(reply.text)"></div>
+                          <div class="content" v-html="reply.compiledText"></div>
                         </div>
                       </div>
 
@@ -92,15 +92,16 @@
                       <div v-if="reply.files">
                         画像表示は現在未対応です
 
-                        <!-- <div ref="imageGallery" class="image-gallery"
-                        :class="[setGalleryClass, { 'expanded': isExpanded }]">
-                        <div v-for="(file, index) in  reply.files.slice(0, 4)" :key="index" class="image-item">
-                          <img :src="fetchImageSrcReply(file, true)" :alt="file.name" class="image" @click="openModal(index)" crossorigin="anonymous" />
+                        <div ref="imageGallery" class="image-gallery"
+                          :class="[setGalleryClass, { 'expanded': isExpanded }]">
+                          <div v-for="(file, index) in reply.files.slice(0, 4)" :key="index" class="image-item">
+                            <img :src="file.imageSrc" :alt="file.name" class="image" @click="openModal(index)"
+                              crossorigin="anonymous" />
+                          </div>
                         </div>
-                      </div>
-                      <button v-if="shouldShowExpandButton" class="expand-button" @click="toggleExpanded">
-                        <span class="expand-button-context">もっと見る</span>
-                      </button> -->
+                        <button v-if="shouldShowExpandButton" class="expand-button" @click="toggleExpanded">
+                          <span class="expand-button-context">もっと見る</span>
+                        </button>
                       </div>
                       <!-- リアクション一覧 -->
                       <div class="reaction-list">
@@ -209,6 +210,7 @@ export default {
       replyText: '', // テキストボックスの入力内容を管理
       replyBroadcast: false, // チェックボックスの状態を管理
       showThread: false, // スレッドの表示/非表示を管理
+      imageLoaded: false,
     };
   },
   inject: {
@@ -291,6 +293,7 @@ export default {
 
       return !this.isExpanded && this.showExpandButton && isMultipleImages;
     },
+
   },
 
   methods: {
@@ -322,7 +325,7 @@ export default {
               });
             }
             if (hasCode) {
-              codes.push({beforeTexts, afterTexts});
+              codes.push({ beforeTexts, afterTexts });
             }
           }
         });
@@ -362,7 +365,7 @@ export default {
       renderer.code = (code, lang) => {
         const highlighted = lang ? hljs.highlight(code.text, { language: lang }).value : hljs.highlightAuto(code.text).value;
         const languageClass = lang ? `hljs ${lang}` : 'hljs';
-        return `<pre><code class="hljs ${languageClass}">${highlighted}</code></pre>`;
+        return `<pre class="pres"><code class="hljs2 ${languageClass}">${highlighted}</code></pre>`;
       };
       renderer.codespan = (code) => {
         return `<code class="inline-code">${code.text}</code>`;
@@ -453,10 +456,29 @@ export default {
         requestAnimationFrame(animation);
       });
     },
-    toggleThread() {
+    async toggleThread() {
       this.showThread = !this.showThread;
-    },
-    handleReactionMouseDown(reaction, reactionName, event) {
+      if (this.showThread && !this.imageLoaded) {
+        const updatedReplies = await Promise.all(this.replies.map(async (reply, index) => {
+          if (index > 0 && reply.files) {
+            const updatedFiles = await Promise.all(reply.files.map(async (file) => {
+              const src = await this.fetchImageSrcReply(file, true);
+              return {
+                ...file,
+                imageSrc: src
+              };
+            }));
+            return {
+              ...reply,
+              files: updatedFiles
+            };
+          }
+          return reply;
+        }));
+        this.replies = updatedReplies;
+        this.imageLoaded = true;
+      }
+    }, handleReactionMouseDown(reaction, reactionName, event) {
       // 長押しを検知するためのタイマーを設定
       this.reactionTimeout = setTimeout(() => {
         this.showUserList(reaction, reactionName, event);
@@ -520,7 +542,8 @@ export default {
         return file.thumb_480; // エラーが発生した場合、元のURLを表示
       }
     },
-    async fetchImageSrcReply(file, init) {
+    async fetchImageSrcReply(sorceFile, init) {
+      const file = toRaw(sorceFile);
       try {
         // Flaskサーバーから画像を取得
         // Flaskを経由するのはAuthorizationヘッダーが必要なため。imgタグでヘッダー設定できない
@@ -660,8 +683,17 @@ export default {
           console.error('Error fetching data:', error);
           return;
         });
-        this.replies = await toRaw(response);
-
+        this.replies = [];
+        await toRaw(response).forEach((reply, index) => {
+          if (index > 0) {
+            this.replies.push({
+              ...reply,
+              compiledText: this.compiledMarkdown(reply.text)
+            });
+          } else {
+            this.replies.push(reply);
+          }
+        });
         const message = this.replies?.find((msg) => msg.ts === this.localPost.ts);
         this.reactions = message?.reactions ?? [];
       } catch (error) {
@@ -1457,5 +1489,32 @@ export default {
   margin: 10px 0;
   background-color: #f9f9f9;
   color: #555;
+}
+
+::v-deep pre {
+  min-width: 100% !important;
+
+  /* 横スクロールバーを表示 */
+  overflow: auto !important;
+  white-space: pre !important;
+  /* 改行を保持 */
+}
+
+::v-deep pre code.hljs {
+  display: block !important;
+  min-width: 100% !important;
+  overflow-x: scroll !important;
+  /* 横スクロールバーを表示 */
+  white-space: pre !important;
+  /* 改行を保持 */
+}
+
+::v-deep p {
+  display: block;
+  margin-block-start: 0em;
+  margin-block-end: 0em;
+  margin-inline-start: 0px;
+  margin-inline-end: 0px;
+  unicode-bidi: isolate;
 }
 </style>
