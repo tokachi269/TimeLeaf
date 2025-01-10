@@ -197,7 +197,7 @@ export default {
     makeQuery(channels) {
       // チャンネル名だけを抽出して、in: 形式で文字列にする
       const channelNames = channels.map(channel => channel.name);
-      return 'in:' + channelNames.join(' in:');  // 'in:'で区切って結合
+      return 'in:' + channelNames.join(' in:') ;  // 'in:'で区切って結合
     },
     async loadPosts() {
       // APIまたはデータソースからの投稿を読み込む
