@@ -20,13 +20,23 @@
           <div v-if="thumbnailHtml" class="url-preview-container" v-html="thumbnailHtml"></div> <!-- サムネイル表示 -->
 
           <!-- 画像一覧 -->
-          <div v-if="hasImage">
+          <div v-if="this.imgsAndVids.length != 0">
             <div ref="imageGallery" class="image-gallery" :class="[setGalleryClass, { 'expanded': isExpanded }]">
               <div v-for="(file, index) in visibleImages" :key="index" class="image-item">
-                <img :src="file.url" :alt="file.name" class="image" @click="openModal(index)" crossorigin="anonymous" />
+                <template v-if="file.media_display_type !== 'video'">
+                  <img :src="file.url" :alt="file.name" class="image" @click="openModal(file)"
+                    crossorigin="anonymous" />
+                </template>
+                <template v-else>
+                  <video controls ref="video" class="media image-item" crossorigin="anonymous">
+                    <source :src="file.url" :alt="file.name" :type="file.mimeType" :poster="file.url">
+                    Your browser does not support the video tag.
+                  </video>
+                </template>
               </div>
               <div v-if="isModalOpen" class="modal" @click="closeModal">
-                <img :src="modalImageUrl" alt="High Quality Image" class="modal-image" crossorigin="anonymous" />
+                <img ref="modalImage" :src="modalImageUrl" alt="High Quality Image" class="modal-image"
+                  crossorigin="anonymous" />
               </div>
             </div>
             <button v-if="shouldShowExpandButton" class="expand-button" @click="toggleExpanded">
@@ -66,11 +76,11 @@
 
             <div class="thread-toggle">
               <button @click="toggleThread" v-if="!showThread">スレッドを表示</button>
-              <button @click="toggleThread" v-if="showThread">スレッドを閉じる</button>
+              <button @click="toggleThread(false)" v-if="showThread">スレッドを閉じる</button>
             </div>
             <!-- スレッドの内容を表示 -->
-            <transition @after-leave="adjustScroll">
-              <div v-if="showThread && replies && replies.length > 1">
+            <transition @after-leave="handleAfterLeave">
+              <div v-if="showThread && replies && replies.length > 1 && imageLoaded">
                 <div class="thread-content">
                   <div v-for="(reply, index) in replies" :key="reply.ts" class="thread-reply">
                     <div v-if="index > 0">
@@ -84,18 +94,28 @@
                       <div class="content-wrapper">
                         <div class="thread-empty-space"></div>
                         <div class="content-area">
-                          <div class="content" v-html="reply.compiledText"></div>
+                          <div class="content" v-html="formattingContext(reply.compiledText)"></div>
                         </div>
                       </div>
 
                       <!-- 画像一覧 -->
                       <div v-if="reply.files">
-                        画像表示は現在未対応です
-
                         <div ref="imageGallery" class="image-gallery"
                           :class="[setGalleryClass, { 'expanded': isExpanded }]">
                           <div v-for="(file, index) in reply.files.slice(0, 4)" :key="index" class="image-item">
-                            <img :src="file.imageSrc" :alt="file.name" class="image" @click="openModal(index)"
+                            <template v-if="file.media_display_type !== 'video'">
+                              <img :src="file.url" :alt="file.name" class="image" @click="openModal(file)"
+                                crossorigin="anonymous" />
+                            </template>
+                            <template v-else>
+                              <video controls ref="video" class="media image-item" crossorigin="anonymous">
+                                <source :src="file.url" :alt="file.name" :type="file.mimeType" :poster="file.url">
+                                Your browser does not support the video tag.
+                              </video>
+                            </template>
+                          </div>
+                          <div v-if="isModalOpen" class="modal" @click="closeModal">
+                            <img ref="modalImage" :src="modalImageUrl" alt="High Quality Image" class="modal-image"
                               crossorigin="anonymous" />
                           </div>
                         </div>
@@ -125,7 +145,7 @@
                   </div>
                 </div>
                 <div class="thread-toggle">
-                  <button @click="toggleThread">スレッドを閉じる</button>
+                  <button @click="toggleThread(true)">スレッドを閉じる</button>
                 </div>
               </div>
             </transition>
@@ -184,7 +204,7 @@ export default {
     return {
       localPost: toRaw(this.post), // propsの値をdataにコピーして保持
       replies: [],
-      images: [],
+      imgsAndVids: [],
       urls: [],
       reactions: [],
       message: {},
@@ -196,7 +216,6 @@ export default {
       isExpanded: false,
       showExpandButton: false,
       maxHeight: 500, // imageGalleryの初期最大高
-      hasImage: false,
       isUserListVisible: false,
       isScrolling: false,
       isTouchDevice: 'ontouchstart' in window, // タッチデバイスの判定
@@ -225,10 +244,9 @@ export default {
     // 画像ファイルの URL を取得
     if (this.post.files) {
       for (const file of this.post.files) {
-        await this.fetchImageSrc(file, true);
+        this.imgsAndVids.push(await this.fetchImageSrc(file, true));
       }
       if (this.post.files.length !== 0) {
-        this.hasImage = true;
         await nextTick(); // DOM が更新されるのを待つ
         const observer = new IntersectionObserver((entries) => {
           if (entries[0].isIntersecting) {
@@ -242,13 +260,20 @@ export default {
         }
       }
     }
-
     window.addEventListener("resize", this.checkHeight); // imageGalleryのサイズ変更(画像が呼び込まれた)検知
     window.addEventListener("scroll", this.onScroll); // スクロール検知
     // タップイベントリスナー (スマホ)
     if (this.isTouchDevice) {
       window.addEventListener("touchstart", this.onTap);
     }
+
+    this.$watch('isModalOpen', (newVal) => {
+      if (newVal) {
+        window.addEventListener('wheel', this.handleWheel, { passive: false });
+      } else {
+        window.removeEventListener('wheel', this.handleWheel);
+      }
+    });
     await this.fetchReplies();
     //スレッド投稿の場合は表示しないが、スレッドブロードキャストの場合は表示する
     //thread_ts がある、親投稿じゃない、スレッドブロードキャストじゃないときにスレッド内の投稿と判断
@@ -259,10 +284,48 @@ export default {
       console.log(this.message);
       console.log(this.replies);
     }
+
+    // 画像ファイルの URL を取得
+    if (this.replies) {
+      const updatedReplies = await Promise.all(
+        this.replies.map(async (reply, index) => {
+          if (index > 0 && reply && reply.files) {
+            const updatedFiles = await Promise.all(
+              reply.files.map(async (file) => {
+                return await this.fetchImageSrc(file, true);
+              })
+            );
+            return { ...reply, files: updatedFiles };
+          }
+          return reply;
+        })
+      );
+      this.replies = updatedReplies;
+      this.imageLoaded = true;
+    }
+
+
     this.extractThumbnail();
 
+    const options = {
+      root: null,
+      rootMargin: '0px',
+      threshold: 0.1
+    };
+
+    this.observer = new IntersectionObserver(this.handleIntersection, options);
+
+    this.$nextTick(() => {
+      const videos = this.$refs.video;
+      if (videos) {
+        videos.forEach(video => {
+          this.observer.observe(video);
+        });
+      }
+    });
   },
   beforeUnmount() {
+    window.removeEventListener('wheel', this.handleWheel);
     window.removeEventListener("resize", this.checkHeight);
     window.removeEventListener("scroll", this.onScroll);
 
@@ -274,7 +337,7 @@ export default {
   computed: {
     visibleImages() {
       // 表示する画像の数を決定
-      return this.isExpanded ? this.images : this.images.slice(0, 4);
+      return this.isExpanded ? this.imgsAndVids : this.imgsAndVids.slice(0, 4);
     },
     setGalleryClass() {
       // 画像が1枚の場合は `single-image` クラス、複数枚の場合は `multi-image` クラスを返す
@@ -297,6 +360,14 @@ export default {
   },
 
   methods: {
+    handleIntersection(entries) {
+      entries.forEach(entry => {
+        const video = entry.target;
+        if (!entry.isIntersecting) {
+          video.pause();
+        }
+      });
+    },
     replaceHtmlTag(text) {
       const blocks = this.localPost.content.blocks;
       let codes = [];
@@ -344,9 +415,10 @@ export default {
       }
       this.getUrls(text);
       this.extractThumbnail();
-      let markdownText = this.replaceHtmlTag(text);
+      let markdownText = this.formattingContext(text);
 
-      this.formattingContext(markdownText);
+      markdownText = this.replaceHtmlTag(text);
+
 
       // Slackのmrkdwn形式をMarkdownに変換
       const slackToMarkdown = (text) => {
@@ -384,9 +456,6 @@ export default {
           .replace(/&#039;/g, "'");
       };
       markdownText = unescapeHtml(markdownText);
-
-      console.log(text);
-      console.log(markdownText);
       return markdownText;
     },
 
@@ -456,29 +525,16 @@ export default {
         requestAnimationFrame(animation);
       });
     },
-    async toggleThread() {
-      this.showThread = !this.showThread;
-      if (this.showThread && !this.imageLoaded) {
-        const updatedReplies = await Promise.all(this.replies.map(async (reply, index) => {
-          if (index > 0 && reply.files) {
-            const updatedFiles = await Promise.all(reply.files.map(async (file) => {
-              const src = await this.fetchImageSrcReply(file, true);
-              return {
-                ...file,
-                imageSrc: src
-              };
-            }));
-            return {
-              ...reply,
-              files: updatedFiles
-            };
-          }
-          return reply;
-        }));
-        this.replies = updatedReplies;
-        this.imageLoaded = true;
+    handleAfterLeave() {
+      if (this.closeFromBottom) {
+        this.adjustScroll();
       }
-    }, handleReactionMouseDown(reaction, reactionName, event) {
+    },
+    async toggleThread(fromBottom) {
+      this.showThread = !this.showThread;
+      this.closeFromBottom = fromBottom;
+    },
+    handleReactionMouseDown(reaction, reactionName, event) {
       // 長押しを検知するためのタイマーを設定
       this.reactionTimeout = setTimeout(() => {
         this.showUserList(reaction, reactionName, event);
@@ -513,64 +569,63 @@ export default {
         console.error('Error fetching user profile:', error);
       }
     },
+
     async fetchImageSrc(file, init) {
-      try {
-        // Flaskサーバーから画像を取得
-        // Flaskを経由するのはAuthorizationヘッダーが必要なため。imgタグでヘッダー設定できない
-        // 一度画像を取得して、imgタグではキャッシュを参照している
-        const url = `${API_BASE_URL}/api/v1/slack/image?url=${encodeURIComponent(init ? (file.thumb_720 ? file.thumb_720 : (file.thumb_480 ? file.thumb_480 : file.thumb_360)) : file.url_private)}&type=${encodeURIComponent(file.mimetype)}`;
-        await fetch(url, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${toRaw(this.accessToken)}`
-          }
-        }).then(response => {
-          if (!response.ok) {
-            throw new Error('Network response was not ok');
-          }
-          if (init) {
-            file.url = url;
-            this.images.push(file);
+      const imageTypes = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff'];// 画像タイプの一覧
+      let mimetype;
+      let fetchUrl;
+      if (init) {
+        if (file.media_display_type === 'video') {
+          if (file.mp4_low) {
+            mimetype = file.mimetype;
+            fetchUrl = file.mp4_low;
           } else {
-            this.modalImageUrl = url;
+            mimetype = "image/jpeg";
+            fetchUrl = file.thumb_video;
           }
-        }).catch(error => {
-          console.error('Error fetching data:', error);
-        });
-      } catch (error) {
-        console.error("Error fetching image:", error);
-        return file.thumb_480; // エラーが発生した場合、元のURLを表示
+        } else if (imageTypes.includes(file.filetype)) {
+          mimetype = file.mimetype;
+          if (file.thumb_720) {
+            fetchUrl = file.thumb_720;
+          } else if (file.thumb_480) {
+            fetchUrl = file.thumb_480;
+          } else if (file.permalink) {
+            fetchUrl = file.permalink;
+          }
+        }
+      } else {
+        mimetype = file.mimetype;
+        fetchUrl = file.url_private;
       }
-    },
-    async fetchImageSrcReply(sorceFile, init) {
-      const file = toRaw(sorceFile);
-      try {
-        // Flaskサーバーから画像を取得
-        // Flaskを経由するのはAuthorizationヘッダーが必要なため。imgタグでヘッダー設定できない
-        // 一度画像を取得して、imgタグではキャッシュを参照している
-        const url = `${API_BASE_URL}/api/v1/slack/image?url=${encodeURIComponent(init ? (file.thumb_720 ? file.thumb_720 : (file.thumb_480 ? file.thumb_480 : file.thumb_360)) : file.url_private)}&type=${encodeURIComponent(file.mimetype)}`;
-        await fetch(url, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${toRaw(this.accessToken)}`
-          }
-        }).then(response => {
-          if (!response.ok) {
-            throw new Error('Network response was not ok');
-          }
-          if (init) {
-            file.url = url;
-            return url;
-          } else {
-            //  this.modalImageUrl = url;
-          }
-        }).catch(error => {
-          console.error('Error fetching data:', error);
-        });
-      } catch (error) {
-        console.error("Error fetching image:", error);
-        return file.thumb_480; // エラーが発生した場合、元のURLを表示
+      if (fetchUrl) {
+        try {
+          // Flaskサーバーから画像を取得
+          // Flaskを経由するのはAuthorizationヘッダーが必要なため。imgタグでヘッダー設定できない
+          // 一度画像を取得して、imgタグではキャッシュを参照している
+          const url = `${API_BASE_URL}/api/v1/slack/image?url=${encodeURIComponent(fetchUrl)}&type=${encodeURIComponent(mimetype)}`;
+          await fetch(url, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${toRaw(this.accessToken)}`
+            }
+          }).then(response => {
+            if (!response.ok) {
+              throw new Error('Network response was not ok');
+            }
+            if (init) {
+              file.url = url;
+            } else {
+              this.modalImageUrl = url;
+            }
+          }).catch(error => {
+            console.error('Error fetching data:', error);
+          });
+        } catch (error) {
+          console.error("Error fetching image:", error);
+          return fetchUrl; // エラーが発生した場合、元のURLを表示
+        }
       }
+      return file;
     },
     extractThumbnail() {
       if (this.localPost.thumbnailHtmls && this.localPost.thumbnailHtmls.length > 0) {
@@ -632,13 +687,17 @@ export default {
     collapseGallery() {
       this.isExpanded = false;
     },
-    async openModal(index) {
-      const file = this.images[index];
+    async openModal(file) {
       await this.fetchImageSrc(file, false);
       this.isModalOpen = true;
+      document.body.style.overflow = 'hidden'; // 背景のスクロールを防ぐ
     },
     closeModal() {
       this.isModalOpen = false;
+      document.body.style.overflow = ''; // 背景のスクロールを元に戻す
+    },
+    playVideo(index) {
+      this.$set(this.visibleImages, index, { ...this.visibleImages[index], isPlaying: true });
     },
     onScroll() {
       // ユーザーポップアップが表示されている場合は閉じる
@@ -927,13 +986,25 @@ export default {
       }
 
     },
-
     checkHighlight(reaction) {
       return toRaw(reaction).users.some(user => user.id === this.localPost.accessedId);
     },
     preventContextMenu(event) {
       event.preventDefault();
     },
+    handleWheel(event) {
+      event.preventDefault();
+      if (event.deltaY < 0) {
+        this.scale += 0.1;
+      } else {
+        this.scale -= 0.1;
+      }
+      this.scale = Math.min(Math.max(0.5, this.scale), 3); // 拡大縮小率の範囲を制限
+
+      if (this.$refs.modalImage) {
+        this.$refs.modalImage.style.transform = `scale(${this.scale})`;
+      }
+    }
   }
 }
 </script>
@@ -1006,7 +1077,7 @@ export default {
 }
 
 ::v-deep .emoji-image:hover {
-  transform: scale(2);
+  transform: scale(3);
   /* 画像を2倍に拡大 */
   animation: enlarge 0.1s ease forwards;
   /* enlargeアニメーションを適用 */
@@ -1234,19 +1305,24 @@ export default {
   position: fixed;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
-  /* 背景を暗く */
+  width: 100%;
+  height: 100%;
   background-color: rgba(0, 0, 0, 0.8);
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 9999;
+  overflow: auto;
+  /* スクロールを有効にする */
+  z-index: 1000;
+  /* 表示順序を最前面にする */
 }
 
 .modal-image {
-  max-width: 90%;
-  max-height: 90%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  touch-action: pinch-zoom;
+  /* ピンチズームを有効にする */
 }
 
 .expand-button {
