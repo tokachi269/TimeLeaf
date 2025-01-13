@@ -630,7 +630,19 @@ export default {
     extractThumbnail() {
       if (this.localPost.thumbnailHtmls && this.localPost.thumbnailHtmls.length > 0) {
         const attachment = this.localPost.thumbnailHtmls[0]; // 最初の添付情報を取得
-        if (attachment.image_url && attachment.title && attachment.title_link) {
+        if (attachment.service_name === "X (formerly Twitter)") {
+          this.thumbnailHtml = `
+            <div class="twitter-preview">
+              <a href="${attachment.title_link}" target="_blank" rel="noopener noreferrer" class="twitter-header">
+                <img src="${attachment.service_icon}" alt="Twitter Icon" class="twitter-icon" />
+                <strong>${attachment.title}</strong>
+              </a>
+              <div class="twitter-content">${attachment.text}</div>
+              <img src="${attachment.image_url}" alt="${attachment.title}" class="twitter-image" />
+            </div>
+          `;
+          return;
+        } else if (attachment.image_url && attachment.title && attachment.title_link) {
           // サムネイル用HTMLを作成
           this.thumbnailHtml = `
             <div class="url-preview">
@@ -1592,5 +1604,50 @@ export default {
   margin-inline-start: 0px;
   margin-inline-end: 0px;
   unicode-bidi: isolate;
+}
+
+::v-deep .twitter-header {
+  flex-grow: 1;
+  display: flex;
+  text-align: left;
+  /* 垂直方向に中央揃え */
+  align-items: center;
+  /* 要素間のスペースを設定 */
+  gap: 8px;
+}
+
+::v-deep .twitter-preview {
+  border: 1px solid #e1e8ed;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 10px;
+  padding: 10px;
+}
+
+::v-deep .twitter-image {
+  width: 100%;
+  height: auto;
+}
+
+::v-deep .twitter-content {
+  margin-bottom: 5px;
+  text-align: left;
+  /* 子要素を中央揃え */
+  align-items: center;
+  padding: 10px;
+}
+
+::v-deep .twitter-icon {
+  width: 24px;
+  height: 24px;
+  margin-right: 10px;
+}
+
+::v-deep .twitter-text {
+  flex: 1;
+}
+
+::v-deep .twitter-text p {
+  margin: 0;
 }
 </style>
