@@ -395,8 +395,9 @@ export default {
               styledText = ':' + element.name + ':';
             } else if (element.type === "link") {
               styledText = `<a href="${element.url}" target="_blank">${element.text ? element.text : element.url}</a>`;
-            }
-            if (element.text) { // element.textが存在し、空文字や改行でない場合のみ処理を行う
+            } else if (element.type === "user") {
+              styledText = '@' + element.user_id + ' ';
+            } else if (element.text) { // テキストがある場合はスタイルを適用
               if (element.style) {
                 if (element.style.code) {
                   styledText = '`' + styledText + '`';
@@ -428,6 +429,8 @@ export default {
                   styledText = ':' + element.name + ':';
                 } else if (element.type === "link") {
                   styledText = `<a href="${element.url}" target="_blank">${element.text ? element.text : element.url}</a>`;
+                } else if (element.type === "user") {
+                  styledText = '@' + element.user_id + ' ';
                 } else if (subElement.text) {
                   let subStyledText = subElement.text;
                   if (subElement.style) {
