@@ -484,9 +484,10 @@ export default {
 }
 
 .timeline-toggle button {
+  color: rgb(0, 0, 0);
   flex: 1;
   padding: 10px;
-  background-color: #f9f9f9;
+  background-color: #e3e3e3;
   border: none;
   font-size: 1em;
   cursor: pointer;
@@ -499,7 +500,9 @@ export default {
   color: white;
   font-weight: bold;
 }
-
+.timeline-toggle button:not(.active) {
+  background-color: #efefef;
+}
 .timeline-toggle button:not(.active):hover {
   background-color: #e0e0e0;
 }

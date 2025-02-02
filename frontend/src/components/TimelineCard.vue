@@ -14,10 +14,11 @@
         <div class="empty-space"></div>
         <div class="content-area">
 
-          <div class="content" v-html="formattingContext(compiledMarkdown(localPost.content.text))"></div>
+          <div class="content" v-html="formattingContext(compiledMarkdown(localPost.content))"></div>
 
           <!-- URLのサムネイル -->
-          <div v-if="thumbnailHtml" class="url-preview-container" v-html="thumbnailHtml"></div> <!-- サムネイル表示 -->
+          <div v-if="extractThumbnail(localPost)" class="url-preview-container" v-html="extractThumbnail(localPost)">
+          </div>
 
           <!-- 画像一覧 -->
           <div v-if="this.imgsAndVids.length != 0">
@@ -45,7 +46,7 @@
           </div>
 
           <!-- リアクション一覧 -->
-          <div class="reaction-list">
+          <div v-if="reactions.length != 0" class="reaction-list">
             <div v-for="reaction in reactions" :key="reaction.name" class="reaction-item"
               :class="{ 'highlight': checkHighlight(reaction) }"
               @mouseenter="showUserList(reaction, reaction.name, $event)" @mouseleave="hideUserList"
@@ -95,6 +96,11 @@
                         <div class="thread-empty-space"></div>
                         <div class="content-area">
                           <div class="content" v-html="formattingContext(reply.compiledText)"></div>
+                          <!-- URLのサムネイル -->
+                          <div v-if="extractThumbnail(reply)" class="url-preview-container"
+                            v-html="extractThumbnail(reply)">
+                          </div>
+
                         </div>
                       </div>
 
@@ -124,7 +130,7 @@
                         </button>
                       </div>
                       <!-- リアクション一覧 -->
-                      <div class="reaction-list">
+                      <div v-if="reply.reactions && reply.reactions.length != 0" class="reaction-list">
                         <div v-for="reaction in reply.reactions" :key="reaction.name" class="reaction-item"
                           :class="{ 'highlight': checkHighlight(reaction) }"
                           @mouseenter="showUserList(reaction, reaction.name, $event)" @mouseleave="hideUserList"
@@ -135,11 +141,13 @@
                           <span v-html="getEmojiForReaction(reaction.name)"></span>
                           <span class="reaction-count">{{ reaction.count }}</span>
                         </div>
+                      </div>
+                      <div class="detail-list">
                         <div v-if="reactions.length != 0" @click="openEmojiPicker(reply.ts, $event)"
                           class="reaction-item">
                           <img src="./../assets/emoji-add.png" alt="Add Reaction" class="emoji-image">
                         </div>
-                        <br>
+                        <span class="date">{{ new Date(reply.ts * 1000).toLocaleString() }}</span>
                       </div>
                     </div>
                   </div>
@@ -230,6 +238,10 @@ export default {
       replyBroadcast: false, // チェックボックスの状態を管理
       showThread: false, // スレッドの表示/非表示を管理
       imageLoaded: false,
+      spotifyPlayer: null,
+      spotifyAccessToken: 'BQAcpweXtWYvHjWVJggLguR6iDM4eZjl41v53-Vp7I4kBGzAXe3CJgKdrcFV10Np2-fci-cUOFo3UhRSdjmfPDTY0IRs-CiDJsyv9sUxV7o-WeddLQ81_Qa3EevLOi5QgMD5wjlmipsUB3AF1Zt784DHDWZ9cEY5C7o56mAk37oiYPlPFHMjcOTDzLUHcHha4nzWmgUEB18H6jJ4sdRMb1oON3DvAYJfmQCdpMB0op2Tz5mxwR7Vp_s7D8II', // ここにSpotifyのアクセストークンを設定
+      deviceId: null,
+      currentTrackUri: null,
     };
   },
   inject: {
@@ -305,7 +317,7 @@ export default {
     }
 
 
-    this.extractThumbnail();
+    //this.thumbnailHtml = this.extractThumbnail();
 
     const options = {
       root: null,
@@ -368,67 +380,114 @@ export default {
         }
       });
     },
-    replaceHtmlTag(text) {
-      const blocks = this.localPost.content.blocks;
-      let codes = [];
-
-      blocks?.forEach(block => {
-        block.elements.forEach(element => {
-          if (element.elements) {
-            let beforeTexts = '';
-            let afterTexts = '';
-            let hasCode = false;
-
-            element.elements.forEach(subElement => {
-              if (subElement.style && subElement.style.code) {
-                hasCode = true;
+    replaceHtmlTag(content) {
+      const blocks = content.blocks;
+      let formattedText = '';
+      if (content.text && content.text.includes('好きなバンプ')) {
+        console.log('好きなバンプが含まれています');
+      }
+      // 再帰的にelementsを処理する関数
+      const processElements = (elements, isList = false, isOrderedList = false, listIndex = 1) => {
+        elements.forEach(element => {
+          let styledText = element.text;
+          if (!element.elements) {
+            if (element.type === "emoji") {
+              styledText = ':' + element.name + ':';
+            } else if (element.type === "link") {
+              styledText = `<a href="${element.url}" target="_blank">${element.text ? element.text : element.url}</a>`;
+            }
+            if (element.text) { // element.textが存在し、空文字や改行でない場合のみ処理を行う
+              if (element.style) {
+                if (element.style.code) {
+                  styledText = '`' + styledText + '`';
+                }
+                if (element.style.bold) {
+                  styledText = '**' + styledText + '**';
+                }
+                if (element.style.italic) {
+                  styledText = '*' + styledText + '*';
+                }
               }
-            });
-            if (hasCode) {
+            }
+            // テキストを結合
+            if (isOrderedList) {
+              formattedText += `${listIndex}. ${styledText}\n`;
+              listIndex++;
+            } else if (isList) {
+              formattedText += `* ${styledText}\n`;
+            } else {
+              formattedText += styledText;
+            }
+            // ネストされたelementsがある場合は再帰的に処理
+          } else {
+            if (element.type === "rich_text_list") {
+              // "rich_text_list"の場合はその中身を改行で結合
+              let subListIndex = 1;
               element.elements.forEach(subElement => {
-                if (subElement.style && subElement.style.code) {
-                  beforeTexts += subElement.text;
-                  afterTexts += '`' + subElement.text + '`';
-                } else {
-                  beforeTexts += subElement.text;
-                  afterTexts += subElement.text;
+                if (element.type === "emoji") {
+                  styledText = ':' + element.name + ':';
+                } else if (element.type === "link") {
+                  styledText = `<a href="${element.url}" target="_blank">${element.text ? element.text : element.url}</a>`;
+                } else if (subElement.text) {
+                  let subStyledText = subElement.text;
+                  if (subElement.style) {
+                    if (subElement.style.code) {
+                      subStyledText = '`' + subStyledText + '`';
+                    }
+                    if (subElement.style.bold) {
+                      subStyledText = '**' + subStyledText + '**';
+                    }
+                    if (subElement.style.italic) {
+                      subStyledText = '*' + subStyledText + '*';
+                    }
+                  } else {
+                    if (element.type === "emoji") {
+                      subStyledText = ':' + subStyledText + ':';
+                    }
+                  }
+                  if (element.style && element.style === "ordered") {
+                    formattedText += `${subListIndex}. ${subStyledText}\n`;
+                    subListIndex++;
+                  } else {
+                    formattedText += `* ${subStyledText}\n`;
+                  }
+                }
+                // subElementの中に再帰的にelementsがある場合
+                if (subElement.elements) {
+                  processElements(subElement.elements, true, element.style && element.style === "ordered", subListIndex);
                 }
               });
-            }
-            if (hasCode) {
-              codes.push({ beforeTexts, afterTexts });
+            } else {
+              processElements(element.elements);
             }
           }
         });
+      };
+
+      // 各ブロックをループ
+      blocks?.forEach(block => {
+        processElements(block.elements);
       });
 
-      // beforeTextsをafterTextsに置換
-      codes.forEach(({ beforeTexts, afterTexts }) => {
-        text = text.replace(beforeTexts, afterTexts);
-      });
-
-      return text;
+      return formattedText;
     },
-    compiledMarkdown(text) {
+    compiledMarkdown(content) {
+      var text = content.text;
       if (!text) {
         return '';
       }
-      this.getUrls(text);
-      this.extractThumbnail();
-      let markdownText = this.formattingContext(text);
 
-      markdownText = this.replaceHtmlTag(text);
-
+      let markdownText = this.replaceHtmlTag(content);
 
       // Slackのmrkdwn形式をMarkdownに変換
       const slackToMarkdown = (text) => {
         return text
-          .replace(/\*(.*?)\*/g, '**$1**') // *bold* -> **bold**
-          .replace(/_(.*?)_/g, '_$1_') // _italic_ -> _italic_
+          .replace(/\*\*\*\*/g, '') // **** -> (空文字)
           .replace(/~(.*?)~/g, '~~$1~~') // ~strike~ -> ~~strike~~
           .replace(/`([^`]+)`/g, '`$1`') // `inline code`
-          .replace(/```([^`]+)```/g, '```\n$1\n```')// ```code block```
-          .replace(/<([^|]+)\|([^>]+)>/g, '[$2]($1)');  // <url|description> -> [description](url)
+          .replace(/```([^`]+)```/g, '```\n$1\n```') // ```code block```
+          .replace(/<([^|]+)\|([^>]+)>/g, '[$2]($1)') // <url|description> -> [description](url)
+        //          .replace(/\n/g, '<br>'); // 改行文字を <br> に置換
       };
       markdownText = slackToMarkdown(markdownText);
 
@@ -445,8 +504,28 @@ export default {
       renderer.blockquote = (code) => {
         return `<blockquote class="blockquote-line">${code.text}</blockquote>`;
       };
+      renderer.em = (em) => {
+        return `<p class="custom-italic">${em.text}</p>`;
+      };
+      renderer.list = (body) => {
+        const type = body.ordered ? 'ol' : 'ul';
+        const className = body.ordered ? 'custom-ordered-list' : 'custom-unordered-list';
+        const startatt = (body.ordered && body.start !== 1) ? (' start="' + body.start + '"') : '';
+        // body.itemsを<li>タグで連結
+        const items = body.items.map(item => '<li>' + item.text + '</li>').join('\n');
+
+        return '<' + type + ' class="' + className + '"' + startatt + '>\n' + items + '\n</' + type + '>\n';
+      };
+      renderer.listitem = (text) => {
+        return '<li>' + text.text + '</li>\n';
+      };
+      marked.setOptions({
+        breaks: true
+      });
       markdownText = marked(markdownText, { renderer });
       // 既存のHTMLタグを壊さないようにするために、HTMLタグを元に戻す
+      markdownText = this.formattingContext(markdownText);
+
       const unescapeHtml = (safe) => {
         return safe
           .replace(/&lt;/g, '<')
@@ -496,7 +575,7 @@ export default {
           urls.push({ url: match[4], description: match[4] });
         }
       }
-      this.urls = urls;
+      return urls;
     },
     adjustScroll() {
       this.$nextTick(() => {
@@ -627,11 +706,11 @@ export default {
       }
       return file;
     },
-    extractThumbnail() {
-      if (this.localPost.thumbnailHtmls && this.localPost.thumbnailHtmls.length > 0) {
-        const attachment = this.localPost.thumbnailHtmls[0]; // 最初の添付情報を取得
+    extractThumbnail(localPost) {
+      if (localPost && localPost.thumbnailHtmls && localPost.thumbnailHtmls.length > 0) {
+        const attachment = localPost.thumbnailHtmls[0]; // 最初の添付情報を取得
         if (attachment.service_name === "X (formerly Twitter)") {
-          this.thumbnailHtml = `
+          return `
             <div class="twitter-preview">
               <a href="${attachment.title_link}" target="_blank" rel="noopener noreferrer" class="twitter-header">
                 <img src="${attachment.service_icon}" alt="Twitter Icon" class="twitter-icon" />
@@ -641,10 +720,9 @@ export default {
               <img src="${attachment.image_url}" alt="${attachment.title}" class="twitter-image" />
             </div>
           `;
-          return;
         } else if (attachment.image_url && attachment.title && attachment.title_link) {
           // サムネイル用HTMLを作成
-          this.thumbnailHtml = `
+          return `
             <div class="url-preview">
               <img src="${attachment.image_url}" alt="Thumbnail" class="url-thumbnail" />
               <div class="url-title">
@@ -652,39 +730,42 @@ export default {
               </div>
             </div>
           `;
-          return;
         }
       }
-      this.urls.forEach(url => {
-        if (url.url?.includes("open.spotify.com")) {
-          const trackId = this.extractTrackId(url.url);
-          if (trackId) {
-            // サムネイル用HTMLを作成
-            this.thumbnailHtml = `
-                <iframe style="border-radius:12px" src="https://open.spotify.com/embed/${url.url?.includes("track") ? "track" : url.url?.includes("album") ? "album" : "playlist"}/${trackId}?utm_source=generator" width="100%" height="352" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
-              `;
-          }
-        } else if (url.url?.includes("youtube.com")) {
-          const videoId = this.extractTrackId(url.url);
-          if (videoId) {
-            // YouTube埋め込み用HTMLを作成
-            this.thumbnailHtml = `
-                <iframe width="100%" height="315" src="https://www.youtube.com/embed/${videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-              `;
-          }
-        } else if (url.url?.includes("youtu.be")) {
-          //   const urlObj = new URL(url);
-          //   const videoId = urlObj.pathname.split('/')[1];
-          //   const siValue = urlObj.searchParams.get('si');
+      if (localPost && localPost.content) {
+        const urls = this.getUrls(localPost.content.text);
+        const url = urls.find(url => {
+          return url.url?.includes("open.spotify.com") || url.url?.includes("youtube.com") || url.url?.includes("youtu.be");
+        });
 
-          //   if (siValue) {
-          //     // YouTube埋め込み用HTMLを作成
-          //     this.thumbnailHtml = `
-          //         <iframe width="100%" height="315" src="https://www.youtube.com/embed/${videoId}?si=${siValue}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-          //       `;
-          //   }
+        if (url) {
+          if (url.url.includes("open.spotify.com")) {
+            const trackId = this.extractTrackId(url.url);
+            if (trackId) {
+              // サムネイル用HTMLを作成
+              return `
+              <iframe style="border-radius:12px" src="https://open.spotify.com/embed/${url.url.includes("track") ? "track" : url.url.includes("album") ? "album" : "playlist"}/${trackId}?utm_source=generator" width="100%" height="352" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
+            `;
+            }
+          } else if (url.url.includes("youtube.com") || url.url.includes("youtu.be")) {
+            const videoId = this.extractTrackId(url.url);
+            if (videoId) {
+              // YouTube埋め込み用HTMLを作成
+              return `
+              <iframe width="100%" height="315" src="https://www.youtube.com/embed/${videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+            `;
+            }
+          } else if (url.url.includes("soundcloud.com")) {
+            const trackId = this.extractTrackId(url.url);
+
+            return `
+            <iframe width="100%" height="300" scrolling="no" frameborder="no" allow="autoplay" src="https://w.soundcloud.com/player/?url=https%3A//api.soundcloud.com/tracks/${trackId}&color=%23ff5500&auto_play=false&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true&visual=true"></iframe><div style="font-size: 10px; color: #cccccc;line-break: anywhere;word-break: normal;overflow: hidden;white-space: nowrap;text-overflow: ellipsis; font-family: Interstate,Lucida Grande,Lucida Sans Unicode,Lucida Sans,Garuda,Verdana,Tahoma,sans-serif;font-weight: 100;"><a href="https://soundcloud.com/yanagamiyuki" title="yanagamiyuki" target="_blank" style="color: #cccccc; text-decoration: none;">yanagamiyuki</a> · <a href="https://soundcloud.com/yanagamiyuki/kaijunoshima" title="カイジュウの島" target="_blank" style="color: #cccccc; text-decoration: none;">カイジュウの島</a></div>
+          `;
+          }
         }
-      });
+
+        return null;
+      }
     },
     extractTrackId(url) {
       const match = url.match(/\/([^\\/?]+)\?/);
@@ -759,7 +840,7 @@ export default {
           if (index > 0) {
             this.replies.push({
               ...reply,
-              compiledText: this.compiledMarkdown(reply.text)
+              compiledText: this.compiledMarkdown(reply)
             });
           } else {
             this.replies.push(reply);
@@ -1022,6 +1103,25 @@ export default {
 </script>
 
 <style scoped>
+::v-deep .custom-unordered-list {
+  margin: 0 0 1em 2em;
+  padding: 0;
+  list-style-type: disc;
+}
+
+::v-deep .custom-ordered-list {
+  margin: 0 0 1em 2em;
+  padding: 0;
+  list-style-type: decimal;
+}
+
+::v-deep .custom-italic {
+  font-family: monospace;
+  font-style: italic;
+  transform: skew(-10deg);
+  /* フォントの傾斜を強制的に適用 */
+}
+
 /* cssの共通値 */
 :root {
   --user-image-size: 50px;
@@ -1042,6 +1142,7 @@ export default {
   display: flex;
   flex-direction: column;
   font-size: 16px;
+  background-color: #ffffff;
 }
 
 ::v-deep .highlight {
@@ -1062,6 +1163,9 @@ export default {
   -khtml-user-select: none;
   -webkit-user-select: none;
   user-select: none;
+  overflow: visible;
+  /* 追加 */
+
 }
 
 ::v-deep .add-reaction-image {
@@ -1190,6 +1294,14 @@ export default {
   text-align: left;
   /* 子要素を中央揃え */
   align-items: center;
+  white-space: normal;
+  /* テキストが改行されるようにする */
+  overflow: hidden;
+  /* テキストがはみ出した場合に隠す */
+  text-overflow: ellipsis;
+  /* テキストがはみ出した場合に省略記号を表示 */
+  word-break: break-all;
+  /* 単語の途中で改行されるようにする */
 }
 
 ::v-deep a {
