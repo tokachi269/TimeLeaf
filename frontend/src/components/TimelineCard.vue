@@ -382,10 +382,11 @@ export default {
     },
     replaceHtmlTag(content) {
       const blocks = content.blocks;
-      let formattedText = '';
-      if (content.text && content.text.includes('好きなバンプ')) {
-        console.log('好きなバンプが含まれています');
+      if (!blocks) {
+        return content.text;
       }
+      let formattedText = '';
+
       // 再帰的にelementsを処理する関数
       const processElements = (elements, isList = false, isOrderedList = false, listIndex = 1) => {
         elements.forEach(element => {
@@ -471,7 +472,9 @@ export default {
       blocks?.forEach(block => {
         processElements(block.elements);
       });
-
+      // if (content.text && content.text.includes('言語化の重要な')) {
+      //   console.log(formattedText);
+      // }
       return formattedText;
     },
     compiledMarkdown(content) {
@@ -490,9 +493,11 @@ export default {
           .replace(/`([^`]+)`/g, '`$1`') // `inline code`
           .replace(/```([^`]+)```/g, '```\n$1\n```') // ```code block```
           .replace(/<([^|]+)\|([^>]+)>/g, '[$2]($1)') // <url|description> -> [description](url)
-        //          .replace(/\n/g, '<br>'); // 改行文字を <br> に置換
-      };
-      markdownText = slackToMarkdown(markdownText);
+          .replace(/\n\n/g, '<br><br>') // まずは \n\n を <br><br> に置換
+          .replace(/\n/g, '<br>') // 改行文字を <br> に置換
+          ;
+        };
+        markdownText = slackToMarkdown(markdownText);
 
       // カスタムレンダラーを設定
       const renderer = new marked.Renderer();
@@ -522,8 +527,14 @@ export default {
       renderer.listitem = (text) => {
         return '<li>' + text.text + '</li>\n';
       };
+    // paragraphメソッドをオーバーライドして<p>タグを挿入しない
+      renderer.paragraph = (text) => {
+      return marked.parseInline(text.text) + '\n';
+    };
+
       marked.setOptions({
-        breaks: true
+        breaks: true,
+        renderer: renderer
       });
       markdownText = marked(markdownText, { renderer });
       // 既存のHTMLタグを壊さないようにするために、HTMLタグを元に戻す
@@ -538,6 +549,7 @@ export default {
           .replace(/&#039;/g, "'");
       };
       markdownText = unescapeHtml(markdownText);
+
       return markdownText;
     },
 
@@ -1123,6 +1135,7 @@ export default {
   font-style: italic;
   transform: skew(-10deg);
   /* フォントの傾斜を強制的に適用 */
+  display: inline;
 }
 
 /* cssの共通値 */

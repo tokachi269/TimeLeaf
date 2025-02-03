@@ -501,10 +501,10 @@ export default {
   font-weight: bold;
 }
 .timeline-toggle button:not(.active) {
-  background-color: #efefef;
+  background-color: #ededed;
 }
 .timeline-toggle button:not(.active):hover {
-  background-color: #e0e0e0;
+  background-color: #e1e1e1;
 }
 
 .loading-trigger {
