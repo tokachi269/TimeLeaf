@@ -313,6 +313,11 @@ export default {
         })
       );
       this.replies = updatedReplies;
+      this.replies.forEach(reply => {
+        if(reply.subtype === "thread_broadcast"){
+          console.log(reply);
+        }
+      }); 
       this.imageLoaded = true;
     }
 
@@ -800,7 +805,7 @@ export default {
     extractTrackId(url) {
       if (url.includes("youtube.com")) {
         const match = url.match(/[?&]v=([^&]+)/);
-        return match[1] ? match[1] : null;
+        return match && match.length == 2 ? match[1] : null;
 
       } else {
         const match = url.match(/\/([^\\/?]+)\?/);
@@ -877,7 +882,7 @@ export default {
           return;
         });
         this.replies = [];
-        await toRaw(response).forEach((reply, index) => {
+        await toRaw(response)?.forEach((reply, index) => {
           if (index > 0) {
             this.replies.push({
               ...reply,

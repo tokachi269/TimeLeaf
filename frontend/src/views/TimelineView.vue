@@ -197,7 +197,7 @@ export default {
     makeQuery(channels) {
       // チャンネル名だけを抽出して、in: 形式で文字列にする
       const channelNames = channels.map(channel => channel.name);
-      return 'in:' + channelNames.join(' in:') ;  // 'in:'で区切って結合
+      return 'in:' + channelNames.join(' in:');  // 'in:'で区切って結合
     },
     async loadPosts() {
       // APIまたはデータソースからの投稿を読み込む
@@ -261,6 +261,7 @@ export default {
             this.posts.push(...newPosts);
             this.page++;
             this.errorMessage = '';
+            this.checkAndLoadPosts();
           } else {
             console.error("Failed to fetch messages:", response.error)
           }
@@ -271,6 +272,20 @@ export default {
           this.loading = false
         }
       }
+    },
+    checkAndLoadPosts() {
+      setTimeout(() => {
+        const timelineCards = this.$refs.timelineCards;
+        let cardCount = 0;
+        if (timelineCards) {
+          timelineCards.forEach(card => {
+            cardCount += card.$el.querySelectorAll('.card').length;
+          });
+        }
+        if (cardCount <= 3) {
+          this.loadPosts();
+        }
+      }, 2000);
     },
     formattingContext(context) {
       // メッセージ内容に含まれる絵文字コードを画像URLまたはUnicodeに変換
@@ -378,10 +393,10 @@ export default {
       //スクロールしたら自動ロード
       //よくわからないけど動いてるからOK
       console.log("initIntersectionObserver called")
-      const options = { root: null, rootMargin: '800px', threshold: 1.0 }
+      const options = { root: null, rootMargin: '1200px', threshold: 1.0 }
       this.observer = new IntersectionObserver(entries => {
         if (entries[0].isIntersecting && !this.loading) {
-          this.loadPosts()
+          this.loadPosts();
         }
       }, options)
       this.observer.observe(this.$refs.infiniteScrollTrigger)
@@ -500,9 +515,11 @@ export default {
   color: white;
   font-weight: bold;
 }
+
 .timeline-toggle button:not(.active) {
   background-color: #ededed;
 }
+
 .timeline-toggle button:not(.active):hover {
   background-color: #e1e1e1;
 }
