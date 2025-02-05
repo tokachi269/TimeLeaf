@@ -386,6 +386,7 @@ export default {
         return content.text;
       }
       let formattedText = '';
+      let subListIndex = 1;
 
       // 再帰的にelementsを処理する関数
       const processElements = (elements, isList = false, isOrderedList = false, listIndex = 1) => {
@@ -409,6 +410,9 @@ export default {
                 if (element.style.italic) {
                   styledText = '*' + styledText + '*';
                 }
+                if (element.style.strike) {
+                  styledText = '~~' + styledText + '~~';
+                }
               }
             }
             // テキストを結合
@@ -424,7 +428,6 @@ export default {
           } else {
             if (element.type === "rich_text_list") {
               // "rich_text_list"の場合はその中身を改行で結合
-              let subListIndex = 1;
               element.elements.forEach(subElement => {
                 if (element.type === "emoji") {
                   styledText = ':' + element.name + ':';
@@ -443,6 +446,9 @@ export default {
                     }
                     if (subElement.style.italic) {
                       subStyledText = '*' + subStyledText + '*';
+                    }
+                    if (element.style.strike) {
+                      styledText = '~~' + styledText + '~~';
                     }
                   } else {
                     if (element.type === "emoji") {
@@ -489,15 +495,15 @@ export default {
       const slackToMarkdown = (text) => {
         return text
           .replace(/\*\*\*\*/g, '') // **** -> (空文字)
-          .replace(/~(.*?)~/g, '~~$1~~') // ~strike~ -> ~~strike~~
+          //.replace(/~(.*?)~/g, '~~$1~~') // ~strike~ -> ~~strike~~
           .replace(/`([^`]+)`/g, '`$1`') // `inline code`
           .replace(/```([^`]+)```/g, '```\n$1\n```') // ```code block```
           .replace(/<([^|]+)\|([^>]+)>/g, '[$2]($1)') // <url|description> -> [description](url)
           .replace(/\n\n/g, '<br><br>') // まずは \n\n を <br><br> に置換
           .replace(/\n/g, '<br>') // 改行文字を <br> に置換
           ;
-        };
-        markdownText = slackToMarkdown(markdownText);
+      };
+      markdownText = slackToMarkdown(markdownText);
 
       // カスタムレンダラーを設定
       const renderer = new marked.Renderer();
@@ -527,10 +533,10 @@ export default {
       renderer.listitem = (text) => {
         return '<li>' + text.text + '</li>\n';
       };
-    // paragraphメソッドをオーバーライドして<p>タグを挿入しない
+      // paragraphメソッドをオーバーライドして<p>タグを挿入しない
       renderer.paragraph = (text) => {
-      return marked.parseInline(text.text) + '\n';
-    };
+        return marked.parseInline(text.text) + '\n';
+      };
 
       marked.setOptions({
         breaks: true,
@@ -762,7 +768,7 @@ export default {
               <iframe style="border-radius:12px" src="https://open.spotify.com/embed/${url.url.includes("track") ? "track" : url.url.includes("album") ? "album" : "playlist"}/${trackId}?utm_source=generator" width="100%" height="352" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
             `;
             }
-          } else if (url.url.includes("youtube.com") || url.url.includes("youtu.be")) {
+          } else if (url.url.includes("youtu.be")) {
             const videoId = this.extractTrackId(url.url);
             if (videoId) {
               // YouTube埋め込み用HTMLを作成
@@ -770,7 +776,16 @@ export default {
               <iframe width="100%" height="315" src="https://www.youtube.com/embed/${videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
             `;
             }
-          } else if (url.url.includes("soundcloud.com")) {
+         } else if (url.url.includes("youtube.com")) {
+            const videoId = this.extractTrackId(url.url);
+            if (videoId) {
+              // YouTube埋め込み用HTMLを作成
+              return `
+              <iframe width="100%" height="315" src="https://www.youtube.com/embed/${videoId}?feature=oembed&amp;autoplay=1&amp;iv_load_policy=3"  referrerpolicy="strict-origin-when-cross-origin"  frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen  referrerpolicy="strict-origin-when-cross-origin" allowfullscreen sandbox="allow-scripts allow-same-origin allow-popups allow-presentation" credentialless="true"></iframe>
+            `;
+            }
+          }
+           else if (url.url.includes("soundcloud.com")) {
             const trackId = this.extractTrackId(url.url);
 
             return `
@@ -783,6 +798,17 @@ export default {
       }
     },
     extractTrackId(url) {
+      if (url.includes("youtube.com")) {
+        const match = url.match(/[?&]v=([^&]+)/);
+        return match[1] ? match[1] : null;
+
+      } else {
+        const match = url.match(/\/([^\\/?]+)\?/);
+        return match ? match[1] : null;
+      }
+
+    },
+    extractYoutubeId(url) {
       const match = url.match(/\/([^\\/?]+)\?/);
       return match ? match[1] : null;
     },
@@ -1310,25 +1336,23 @@ export default {
   text-align: left;
   /* 子要素を中央揃え */
   align-items: center;
-  white-space: normal;
   /* テキストが改行されるようにする */
-  overflow: hidden;
-  /* テキストがはみ出した場合に隠す */
-  text-overflow: ellipsis;
+  white-space: normal;
   /* テキストがはみ出した場合に省略記号を表示 */
-  word-break: break-all;
+  text-overflow: ellipsis;
   /* 単語の途中で改行されるようにする */
+  word-break: break-all;
+  overflow: visible;
 }
 
 ::v-deep a {
   margin-bottom: 5px;
   text-align: left;
-  word-break: break-all;
   /* 長いURLを折り返す */
-  word-wrap: break-word;
+  word-break: break-all;
   /* URLを強制的に折り返す */
+  word-wrap: break-word;
   overflow-wrap: break-word;
-  /* 改行を許可 */
   white-space: normal;
 }
 
