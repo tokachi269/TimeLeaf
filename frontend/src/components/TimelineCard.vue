@@ -314,10 +314,10 @@ export default {
       );
       this.replies = updatedReplies;
       this.replies.forEach(reply => {
-        if(reply.subtype === "thread_broadcast"){
+        if (reply.subtype === "thread_broadcast") {
           console.log(reply);
         }
-      }); 
+      });
       this.imageLoaded = true;
     }
 
@@ -738,12 +738,12 @@ export default {
         if (attachment.service_name === "X (formerly Twitter)") {
           return `
             <div class="twitter-preview">
-              <a href="${attachment.title_link}" target="_blank" rel="noopener noreferrer" class="twitter-header">
-                <img src="${attachment.service_icon}" alt="Twitter Icon" class="twitter-icon" />
+              <a href="${attachment.from_url}" target="_blank" rel="noopener noreferrer" class="twitter-header">
+                <img src="${attachment.thumb_url ? attachment.thumb_url : attachment.service_icon}" alt="Twitter Icon" class="twitter-icon" />
                 <strong>${attachment.title}</strong>
               </a>
-              <div class="twitter-content">${attachment.text}</div>
-              <img src="${attachment.image_url}" alt="${attachment.title}" class="twitter-image" />
+              <div class="twitter-content">${attachment.text ? attachment.text : ""}</div>
+              ${attachment.image_url ? `<img src="${attachment.image_url}" alt="Thumbnail" class="twitter-thumbnail" />` : ''}
             </div>
           `;
         } else if (attachment.image_url && attachment.title && attachment.title_link) {
@@ -781,7 +781,7 @@ export default {
               <iframe width="100%" height="315" src="https://www.youtube.com/embed/${videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
             `;
             }
-         } else if (url.url.includes("youtube.com")) {
+          } else if (url.url.includes("youtube.com")) {
             const videoId = this.extractTrackId(url.url);
             if (videoId) {
               // YouTube埋め込み用HTMLを作成
@@ -790,7 +790,7 @@ export default {
             `;
             }
           }
-           else if (url.url.includes("soundcloud.com")) {
+          else if (url.url.includes("soundcloud.com")) {
             const trackId = this.extractTrackId(url.url);
 
             return `
@@ -1806,5 +1806,14 @@ export default {
 
 ::v-deep .twitter-text p {
   margin: 0;
+}
+
+::v-deep .twitter-thumbnail {
+  width: 100%;
+  height: auto;
+  max-height: 600px;
+  -o-object-fit: cover;
+  object-fit: cover;
+  border-radius: 8px;
 }
 </style>
