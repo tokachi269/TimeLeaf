@@ -786,7 +786,7 @@ export default {
             if (videoId) {
               // YouTube埋め込み用HTMLを作成
               return `
-              <iframe width="100%" height="315" src="https://www.youtube.com/embed/${videoId}?feature=oembed&amp;autoplay=1&amp;iv_load_policy=3"  referrerpolicy="strict-origin-when-cross-origin"  frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen  referrerpolicy="strict-origin-when-cross-origin" allowfullscreen sandbox="allow-scripts allow-same-origin allow-popups allow-presentation" credentialless="true"></iframe>
+              <iframe width="100%" height="315" src="https://www.youtube.com/embed/${videoId}?feature=oembed&amp;autoplay=1&amp;iv_load_policy=3"  referrerpolicy="strict-origin-when-cross-origin"  frameborder="0" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen  referrerpolicy="strict-origin-when-cross-origin" allowfullscreen sandbox="allow-scripts allow-same-origin allow-popups allow-presentation" credentialless="true"></iframe>
             `;
             }
           }
