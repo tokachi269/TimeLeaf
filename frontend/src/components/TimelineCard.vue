@@ -396,7 +396,7 @@ export default {
       // 再帰的にelementsを処理する関数
       const processElements = (elements, isList = false, isOrderedList = false, listIndex = 1) => {
         elements.forEach(element => {
-          let styledText = element.text;
+          let styledText = element.text ? element.text : "";
           if (!element.elements) {
             if (element.type === "emoji") {
               styledText = ':' + element.name + ':';
@@ -410,10 +410,10 @@ export default {
                   styledText = '`' + styledText + '`';
                 }
                 if (element.style.bold) {
-                  styledText = '**' + styledText + '**';
+                  styledText = '<strong>' + styledText + '</strong>';
                 }
                 if (element.style.italic) {
-                  styledText = '*' + styledText + '*';
+                  styledText =  '<p class="custom-italic">' + styledText + '</p>';
                 }
                 if (element.style.strike) {
                   styledText = '~~' + styledText + '~~';
@@ -441,16 +441,16 @@ export default {
                 } else if (element.type === "user") {
                   styledText = '@' + element.user_id + ' ';
                 } else if (subElement.text) {
-                  let subStyledText = subElement.text;
+                  let subStyledText = subElement.text ? element.text : "";
                   if (subElement.style) {
                     if (subElement.style.code) {
                       subStyledText = '`' + subStyledText + '`';
                     }
                     if (subElement.style.bold) {
-                      subStyledText = '**' + subStyledText + '**';
+                      subStyledText = '<strong>' + subStyledText + '</strong>';
                     }
                     if (subElement.style.italic) {
-                      subStyledText = '*' + subStyledText + '*';
+                      subStyledText = '<p class="custom-italic">' + subStyledText + '</p>';
                     }
                     if (element.style.strike) {
                       styledText = '~~' + styledText + '~~';
@@ -1236,16 +1236,14 @@ export default {
 .add-reaction-image .emoji-image:hover {
   /* 画像を1倍に拡大(=reaction-item内のemojiは拡大しない) */
   transform: scale(1.2) !important;
-  animation: enlarge 0.2s ease forwards !important;
+  animation: enlargeEmoji 0.2s ease forwards !important;
 }
 
 ::v-deep .emoji-image:hover {
-  transform: scale(3);
   /* 画像を2倍に拡大 */
-  animation: enlarge 0.1s ease forwards;
-  /* enlargeアニメーションを適用 */
+  /* enlargeEmojiアニメーションを適用 */
+  animation: enlargeEmoji 0.1s ease forwards;
   z-index: 10;
-  /* 他の要素よりも前に表示 */
 }
 
 ::v-deep .reaction-item .emoji-image:hover {
@@ -1254,7 +1252,7 @@ export default {
 }
 
 /* アニメーションの定義 */
-@keyframes enlarge {
+@keyframes enlargeEmoji {
   0% {
     /* 通常のサイズ */
     transform: scale(1);
@@ -1262,7 +1260,7 @@ export default {
 
   100% {
     /* 1.5倍に拡大 */
-    transform: scale(1.5);
+    transform: scale(1.8);
   }
 }
 
@@ -1549,17 +1547,29 @@ export default {
   animation: none;
   z-index: auto;
 }
+/* アニメーションの定義 */
+@keyframes enlargeReaction {
+  0% {
+    /* 通常のサイズ */
+    transform: scale(1);
+  }
+
+  100% {
+    /* 1.5倍に拡大 */
+    transform: scale(1.5);
+  }
+}
 
 .reaction-item:hover {
   transform: scale(2);
-  animation: enlarge 0.1s ease forwards;
+  animation: enlargeReaction 0.1s ease forwards;
   z-index: 10;
 }
 
 /* タッチデバイスではタップ時に拡大 */
 .is-tapped .reaction-item {
   transform: scale(2);
-  animation: enlarge 0.1s ease forwards;
+  animation: enlargeReaction 0.1s ease forwards;
   z-index: 10;
 }
 

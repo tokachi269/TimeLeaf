@@ -502,7 +502,7 @@ export default {
   color: rgb(0, 0, 0);
   flex: 1;
   padding: 10px;
-  background-color: #e3e3e3;
+  background-color: #f1f1f1;
   border: none;
   font-size: 1em;
   cursor: pointer;
