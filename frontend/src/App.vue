@@ -287,32 +287,31 @@ body.dark-mode img.invert-on-dark-mode {
   justify-content: center;
   align-items: center;
   margin: 0 auto;
-  /* 中央揃え */
-  width: 600px;
-  padding: 0 0px;
-  /* 左右に20pxのパディングを追加 */
-  position: relative;
+  max-width: 600px;
+  width: 100%;
+  padding: 0 20px;
   height: 50px;
+  position: relative;
 }
 
 .header-container Header {
   flex: 1;
   text-align: center;
 }
-
+@media (max-width: 600px) {
+  .header-container {
+    max-width: 100%;
+    padding: 0 10px;
+  }
+}
 .settings-button {
   position: absolute;
   right: 20px;
-  /* パディングの内側に配置 */
   z-index: 1000;
   cursor: pointer;
   width: 20px;
-  /* 画像の幅を設定 */
   height: 20px;
-  /* 画像の高さを設定 */
-
 }
-
 html {
   overflow-y: scroll;
 }
