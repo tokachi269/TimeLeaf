@@ -70,10 +70,10 @@ export default {
   },
   mounted() {
     // OSの設定を読み込む
-    const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)").matches;
+   // const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)").matches;
     const savedTheme = localStorage.getItem('darkMode');
     if (savedTheme === null) {
-      this.isDarkMode = prefersDarkScheme;
+      this.isDarkMode = false;//prefersDarkScheme;
     } else {
       this.isDarkMode = savedTheme === 'true';
     }
