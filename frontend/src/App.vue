@@ -1,18 +1,27 @@
 <template>
   <div id="app">
     <img alt="Vue logo" src="./assets/logo.png" class="logo" />
-    <Header v-if="team != ''" :msg="headerMessage" />
+    <div class="header-container">
+      <Header v-if="team != ''" :msg="headerMessage" />
+      <!-- 設定モーダルを呼び出すボタン -->
+      <img src="./assets/setting.png" alt="設定" class="settings-button invert-on-dark-mode" @click="openSettingsModal" />
+    </div>
+    <!-- 設定モーダル -->
+    <SettingsModal :show="showSettingsModal" @close="closeSettingsModal" @toggle-darkMode="toggleSetting"
+      @toggle-smallSwitch="toggleSetting" />
+
     <TimelineView v-if="!invalidToken" :accessToken="accessToken" :accessedId="id" :accessedName="name" />
     <br>
     <br>
     <!-- フォロー中のチャンネルがない場合のメッセージ -->
-    <div v-if="errorMessage" class="error-message"  v-html="errorMessage"></div>
+    <div v-if="errorMessage" class="error-message" v-html="errorMessage"></div>
   </div>
 </template>
 
 <script>
 import Header from './components/Header.vue'
 import TimelineView from './views/TimelineView.vue'
+import SettingsModal from './components/SettingsModal.vue'
 import { API_BASE_URL, API_REDIRECT_URL } from '@/config.js';
 import { useRouter, useRoute } from 'vue-router';
 import { ref, onMounted, watch } from 'vue';
@@ -22,6 +31,7 @@ export default {
   components: {
     Header,
     TimelineView,
+    SettingsModal
   },
   data() {
     return {
@@ -32,6 +42,8 @@ export default {
       id: "",
       name: "",
       scope: "",
+      showSettingsModal: false,
+      isDarkMode: false,
     }
   },
   setup(props, { emit }) {
@@ -55,6 +67,17 @@ export default {
     return {
       code,
     };
+  },
+  mounted() {
+    // OSの設定を読み込む
+    const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const savedTheme = localStorage.getItem('darkMode');
+    if (savedTheme === null) {
+      this.isDarkMode = prefersDarkScheme;
+    } else {
+      this.isDarkMode = savedTheme === 'true';
+    }
+    this.applyTheme();
   },
   computed: {
     headerMessage() {
@@ -176,20 +199,80 @@ export default {
       const url = new URL(window.location.href);
       url.search = ''; // クエリパラメーターを削除
       window.history.replaceState({}, document.title, url.toString());
+    },
+    openSettingsModal() {
+      this.showSettingsModal = true;
+    },
+    closeSettingsModal() {
+      this.showSettingsModal = false;
+    },
+    toggleSetting() {
+      this.isDarkMode = !this.isDarkMode;
+      this.applyTheme();
+    },
+    applyTheme() {
+      if (this.isDarkMode) {
+        console.log("applyTheme.body.classList.add('dark-mode');");
+
+        document.body.classList.add('dark-mode');
+      } else {
+        document.body.classList.remove('dark-mode');
+      }
     }
   }
 }
 </script>
 
 <style>
+:root {
+  --background-body: #f9f9f9;
+  --background-card-body: #ffffff;
+  --background-card-border: #ddd;
+  --text-base-color: #1e1e1e;
+  --text-secound-color: #6e6e6e;
+  --text-url-color: #1a73e8;
+  --modal-background-color: #fefefe;
+  --button-active-background-color: rgb(148, 202, 104);
+  --button-active-text-color: white;
+  --button-notactive-background-color: #ededed;
+  --button-notactive-text-color: #1c1c1c;
+  --button-notactive-hover-background-color: #e1e1e1;
+}
+
+body.dark-mode {
+  --background-body: #131313;
+  --background-card-body: #191919;
+  --background-card-border: #686868;
+  --text-base-color: #d0d0d0;
+  --text-secound-color: #9b9b9b;
+  --text-url-color: #99bdec;
+  --modal-background-color: #2c2c2c;
+  --button-active-background-color: rgb(148, 202, 104);
+  --button-active-text-color: white;
+  --button-notactive-background-color: #3e3e3e;
+  --button-notactive-hover-background-color: #3b3b3b;
+  --button-notactive-text-color: rgb(232, 232, 232);
+}
+
+body {
+  background-color: var(--background-body);
+  color: var(--text-base-color);
+}
+img.invert-on-dark-mode {
+  transition: filter 0.3s ease;
+}
+
+body.dark-mode img.invert-on-dark-mode {
+  filter: invert(1);
+}
 #app {
   font-family: Avenir, Helvetica, Arial, sans-serif, Georgia;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-align: center;
-  color: #2c3e50;
+  color: var(--text-base-color);
   margin-top: 10px;
-
+  background-color: var(--background-body);
 }
 
 .logo {
@@ -197,6 +280,37 @@ export default {
   width: 350px;
   /* 高さは自動で調整 */
   height: auto;
+}
+
+.header-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0 auto;
+  /* 中央揃え */
+  width: 600px;
+  padding: 0 0px;
+  /* 左右に20pxのパディングを追加 */
+  position: relative;
+  height: 50px;
+}
+
+.header-container Header {
+  flex: 1;
+  text-align: center;
+}
+
+.settings-button {
+  position: absolute;
+  right: 20px;
+  /* パディングの内側に配置 */
+  z-index: 1000;
+  cursor: pointer;
+  width: 20px;
+  /* 画像の幅を設定 */
+  height: 20px;
+  /* 画像の高さを設定 */
+
 }
 
 html {

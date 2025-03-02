@@ -14,7 +14,7 @@
         <div class="empty-space"></div>
         <div class="content-area">
 
-          <div class="content" v-html="formattingContext(compiledMarkdown(localPost.content))"></div>
+          <div class="content" v-html="compiledMarkdown(localPost.content)"></div>
 
           <!-- URLのサムネイル -->
           <div v-if="extractThumbnail(localPost)" class="url-preview-container" v-html="extractThumbnail(localPost)">
@@ -57,7 +57,7 @@
               <span class="reaction-count">{{ reaction.count }}</span>
             </div>
             <div v-if="reactions.length != 0" @click="openEmojiPicker(this.localPost.ts, $event)" class="reaction-item">
-              <img src="./../assets/emoji-add.png" alt="Add Reaction" class="emoji-image">
+              <img src="./../assets/emoji-add.png" alt="Add Reaction" class="emoji-image invert-on-dark-mode">
             </div>
             <br>
           </div>
@@ -95,7 +95,7 @@
                       <div class="content-wrapper">
                         <div class="thread-empty-space"></div>
                         <div class="content-area">
-                          <div class="content" v-html="formattingContext(reply.compiledText)"></div>
+                          <div class="content" v-html="reply.compiledText"></div>
                           <!-- URLのサムネイル -->
                           <div v-if="extractThumbnail(reply)" class="url-preview-container"
                             v-html="extractThumbnail(reply)">
@@ -145,7 +145,7 @@
                       <div class="detail-list">
                         <div v-if="reactions.length != 0" @click="openEmojiPicker(reply.ts, $event)"
                           class="reaction-item">
-                          <img src="./../assets/emoji-add.png" alt="Add Reaction" class="emoji-image">
+                          <img src="./../assets/emoji-add.png" alt="Add Reaction" class="emoji-image invert-on-dark-mode">
                         </div>
                         <span class="date">{{ new Date(reply.ts * 1000).toLocaleString() }}</span>
                       </div>
@@ -161,10 +161,10 @@
           </div>
           <div class="detail-list">
             <div v-if="reactions.length == 0" @click="openEmojiPicker($event)" class="add-reaction-image">
-              <img src="./../assets/emoji-add.png" alt="Add Reaction" class="emoji-image">
+              <img src="./../assets/emoji-add.png" alt="Add Reaction" class="emoji-image invert-on-dark-mode">
             </div>
             <div @click="showReplyBox = true" class="add-reaction-image">
-              <img src="./../assets/reply.png" alt="Add Reaction" class="emoji-image">
+              <img src="./../assets/reply.png" alt="Add Reaction" class="emoji-image invert-on-dark-mode">
             </div>
             <span class="date">{{ post.date }}</span>
           </div>
@@ -293,8 +293,8 @@ export default {
     this.canDisplayPost = !this.message ? false : !(this.message && this.message.thread_ts && this.message.thread_ts != this.message.ts && this.message?.subtype !== "thread_broadcast");
 
     if (this.message && this.message.thread_ts && this.message.thread_ts == this.message.ts) {
-      console.log(this.message);
-      console.log(this.replies);
+      // console.log(this.message);
+      // console.log(this.replies);
     }
 
     // 画像ファイルの URL を取得
@@ -399,7 +399,7 @@ export default {
           let styledText = element.text ? element.text : "";
           if (!element.elements) {
             if (element.type === "emoji") {
-              styledText = ':' + element.name + ':';
+              styledText = this.formattingContext(':' + element.name + ':', element.unicode);
             } else if (element.type === "link") {
               styledText = `<a href="${element.url}" target="_blank">${element.text ? element.text : element.url}</a>`;
             } else if (element.type === "user") {
@@ -413,7 +413,7 @@ export default {
                   styledText = '<strong>' + styledText + '</strong>';
                 }
                 if (element.style.italic) {
-                  styledText =  '<p class="custom-italic">' + styledText + '</p>';
+                  styledText = '<p class="custom-italic">' + styledText + '</p>';
                 }
                 if (element.style.strike) {
                   styledText = '~~' + styledText + '~~';
@@ -435,7 +435,7 @@ export default {
               // "rich_text_list"の場合はその中身を改行で結合
               element.elements.forEach(subElement => {
                 if (element.type === "emoji") {
-                  styledText = ':' + element.name + ':';
+                  styledText = this.formattingContext(':' + element.name + ':', element.unicode);
                 } else if (element.type === "link") {
                   styledText = `<a href="${element.url}" target="_blank">${element.text ? element.text : element.url}</a>`;
                 } else if (element.type === "user") {
@@ -457,7 +457,7 @@ export default {
                     }
                   } else {
                     if (element.type === "emoji") {
-                      subStyledText = ':' + subStyledText + ':';
+                      subStyledText = this.formattingContext(':' + element.name + ':');
                     }
                   }
                   if (element.style && element.style === "ordered") {
@@ -503,7 +503,6 @@ export default {
           //.replace(/~(.*?)~/g, '~~$1~~') // ~strike~ -> ~~strike~~
           .replace(/`([^`]+)`/g, '`$1`') // `inline code`
           .replace(/```([^`]+)```/g, '```\n$1\n```') // ```code block```
-          .replace(/<([^|]+)\|([^>]+)>/g, '[$2]($1)') // <url|description> -> [description](url)
           .replace(/\n\n/g, '<br><br>') // まずは \n\n を <br><br> に置換
           .replace(/\n/g, '<br>') // 改行文字を <br> に置換
           ;
@@ -542,6 +541,9 @@ export default {
       renderer.paragraph = (text) => {
         return marked.parseInline(text.text) + '\n';
       };
+      renderer.link = (link) => {
+        return link.href;
+      };
 
       marked.setOptions({
         breaks: true,
@@ -549,7 +551,6 @@ export default {
       });
       markdownText = marked(markdownText, { renderer });
       // 既存のHTMLタグを壊さないようにするために、HTMLタグを元に戻す
-      markdownText = this.formattingContext(markdownText);
 
       const unescapeHtml = (safe) => {
         return safe
@@ -560,11 +561,13 @@ export default {
           .replace(/&#039;/g, "'");
       };
       markdownText = unescapeHtml(markdownText);
-
       return markdownText;
     },
 
-    formattingContext(context) {
+    formattingContext(context , unicode) {
+      if (unicode) {
+        return `<span class="emoji-image">${this.convertToHtmlEntity(unicode)}</span>`;
+      }
       // メッセージ内容に含まれる絵文字コードを画像URLまたはUnicodeに変換
       let formattedContent = context.replace(/:([^\s:]+):/g, (match, emojiName) => {
         // emojiMap から画像URLを取得し、該当する画像タグに変換
@@ -1181,7 +1184,7 @@ export default {
 }
 
 .card {
-  border: 1px solid #ddd;
+  border: 1px solid var(--background-card-border);
   border-radius: 8px;
   padding: 12px;
   margin-bottom: 16px;
@@ -1189,7 +1192,7 @@ export default {
   display: flex;
   flex-direction: column;
   font-size: 16px;
-  background-color: #ffffff;
+  background-color: var(--background-card-body);
 }
 
 ::v-deep .highlight {
@@ -1302,12 +1305,12 @@ export default {
 .username {
   font-weight: bold;
   font-size: 0.9em;
-  color: #333;
+  color: var( --text-base-color);
 }
 
 .username-en {
   font-size: 0.9em;
-  color: #6e6e6e;
+  color: var( --text-secound-color);
 }
 
 .content-wrapper {
@@ -1389,12 +1392,13 @@ export default {
 }
 
 ::v-deep .url-title {
+  color: var(--text-url-color);
   text-align: left;
   font-size: 14px;
 }
 
 ::v-deep .url-title a {
-  color: #1a73e8;
+  color: var(--text-url-color);
   text-decoration: none;
 }
 
@@ -1428,7 +1432,7 @@ export default {
   display: block;
   margin: 10px auto;
   padding: 8px 16px;
-  color: white;
+  color: var(--button-notactive-background-color);
   border: none;
   border-radius: 4px;
   cursor: pointer;
@@ -1547,6 +1551,7 @@ export default {
   animation: none;
   z-index: auto;
 }
+
 /* アニメーションの定義 */
 @keyframes enlargeReaction {
   0% {
@@ -1585,7 +1590,7 @@ export default {
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
   max-width: 200px;
   font-size: 0.9em;
-  background-color: rgba(255, 255, 255, 0.8);
+  background-color: var(--modal-background-color);
 }
 
 .user-popup ul {
@@ -1692,8 +1697,8 @@ export default {
 .thread-content {
   flex: 1;
   padding: 5px;
-  border-top: 1px solid #ccc;
-  background-color: #f9f9f9;
+  border-top: 1px solid var(--background-card-border);
+  background-color: var(--modal-background-color);
 }
 
 .thread-reply {
@@ -1709,20 +1714,21 @@ export default {
 .thread-toggle button {
   flex: 1;
   padding: 5px;
-  background-color: #e9e9e9 !important;
+  background-color: var(--button-notactive-background-color) !important;
   border: none;
   font-size: 0.9em;
   cursor: pointer;
   text-align: center;
   transition: background-color 0.3s ease, color 0.3s ease;
+  color: var(--button-notactive-text-color);
 }
 
 .thread-toggle button:hover {
-  background-color: #d2d2d2 !important;
+  background-color: var(--button-notactive-hover-background-color) !important;
 }
 
 ::v-deep .inline-code {
-  border: 1px solid rgb(163 163 163);
+  border: 1px solid var(--background-card-border);
   color: #ff2222;
   padding: 2px 4px;
   border-radius: 4px;

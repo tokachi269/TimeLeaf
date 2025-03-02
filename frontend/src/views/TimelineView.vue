@@ -23,7 +23,9 @@
       <div v-if="loading" class="loading-text">Loading...</div>
     </div>
     <!-- スクロールの一番上に移動するボタン -->
-    <button v-if="showScrollToTop" class="scroll-to-top" @click="scrollToTop">︿</button>
+    <button v-if="showScrollToTop" class="scroll-to-top" @click="scrollToTop">
+      <img src="./../assets/to-top.png" alt="Scroll to top" style="width: 40px; height: 40px;" />
+    </button>
   </div>
 </template>
 
@@ -499,10 +501,10 @@ export default {
 }
 
 .timeline-toggle button {
-  color: rgb(0, 0, 0);
+  color: var(--button-notactive-text-color);
   flex: 1;
   padding: 10px;
-  background-color: #f1f1f1;
+  background-color: var(--button-notactive-background-color);
   border: none;
   font-size: 1em;
   cursor: pointer;
@@ -511,17 +513,17 @@ export default {
 }
 
 .timeline-toggle button.active {
-  background-color: rgb(148, 202, 104);
-  color: white;
+  background-color: var(--button-active-background-color);
+  color:  var(--button-active-text-color);
   font-weight: bold;
 }
 
 .timeline-toggle button:not(.active) {
-  background-color: #ededed;
+  background-color: var(--button-notactive-background-color);
 }
 
 .timeline-toggle button:not(.active):hover {
-  background-color: #e1e1e1;
+  background-color: var(--button-notactive-hover-background-color);
 }
 
 .loading-trigger {
