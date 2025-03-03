@@ -231,6 +231,7 @@ export default {
   --text-base-color: #1e1e1e;
   --text-secound-color: #6e6e6e;
   --text-url-color: #1a73e8;
+  --text-url-hover-color: #2064bc;
   --modal-background-color: #fefefe;
   --button-active-background-color: rgb(148, 202, 104);
   --button-active-text-color: white;
@@ -243,14 +244,15 @@ body.dark-mode {
   --background-body: #171717;
   --background-card-body: #191919;
   --background-card-border: #686868;
-  --text-base-color: #c8c8c8;
-  --text-secound-color: #9b9b9b;
+  --text-base-color: #b1b1b1;
+  --text-secound-color: #7f7f7f;
   --text-url-color: #99bdec;
+  --text-url-hover-color: #74a1dc;
   --modal-background-color: #2c2c2c;
-  --button-active-background-color: rgb(104 149 66);
+  --button-active-background-color: rgb(125 169 88);
   --button-active-text-color: white;
-  --button-notactive-background-color: #3e3e3e;
-  --button-notactive-hover-background-color: #3b3b3b;
+  --button-notactive-background-color: #272727 ;
+  --button-notactive-hover-background-color: #242424 ;
   --button-notactive-text-color: rgb(232, 232, 232);
 }
 
@@ -286,7 +288,7 @@ img.logo {
 }
 
 body.dark-mode img.logo {
-  filter: brightness(0.8) saturate(1.2);/* 明度と彩度の調整 */
+  filter: brightness(0.9) saturate(1.1) /* 明度と彩度の調整 */
 }
 .header-container {
   display: flex;
@@ -307,12 +309,12 @@ body.dark-mode img.logo {
 @media (max-width: 600px) {
   .header-container {
     max-width: 100%;
-    padding: 0 10px;
+    padding: 0 0px;
   }
 }
 .settings-button {
   position: absolute;
-  right: 30px;
+  right: 20px;
   z-index: 1000;
   cursor: pointer;
   width: 20px;

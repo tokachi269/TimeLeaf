@@ -242,6 +242,7 @@ export default {
       spotifyAccessToken: 'BQAcpweXtWYvHjWVJggLguR6iDM4eZjl41v53-Vp7I4kBGzAXe3CJgKdrcFV10Np2-fci-cUOFo3UhRSdjmfPDTY0IRs-CiDJsyv9sUxV7o-WeddLQ81_Qa3EevLOi5QgMD5wjlmipsUB3AF1Zt784DHDWZ9cEY5C7o56mAk37oiYPlPFHMjcOTDzLUHcHha4nzWmgUEB18H6jJ4sdRMb1oON3DvAYJfmQCdpMB0op2Tz5mxwR7Vp_s7D8II', // ここにSpotifyのアクセストークンを設定
       deviceId: null,
       currentTrackUri: null,
+      scale: 1, // 追加: 拡大縮小率を管理する変数
     };
   },
   inject: {
@@ -274,6 +275,10 @@ export default {
     }
     window.addEventListener("resize", this.checkHeight); // imageGalleryのサイズ変更(画像が呼び込まれた)検知
     window.addEventListener("scroll", this.onScroll); // スクロール検知
+    window.addEventListener('wheel', this.handleWheel, { passive: false });
+    window.addEventListener('touchstart', this.handleTouchStart, { passive: false });
+    window.addEventListener('touchmove', this.handleTouchMove, { passive: false });
+ 
     // タップイベントリスナー (スマホ)
     if (this.isTouchDevice) {
       window.addEventListener("touchstart", this.onTap);
@@ -345,7 +350,10 @@ export default {
     window.removeEventListener('wheel', this.handleWheel);
     window.removeEventListener("resize", this.checkHeight);
     window.removeEventListener("scroll", this.onScroll);
-
+    window.removeEventListener('wheel', this.handleWheel);
+    window.removeEventListener('touchstart', this.handleTouchStart);
+    window.removeEventListener('touchmove', this.handleTouchMove);
+ 
     // タップイベントリスナー (スマホ)
     if (this.isTouchDevice) {
       window.removeEventListener("touchstart", this.onTap);
@@ -837,7 +845,47 @@ export default {
     closeModal() {
       this.isModalOpen = false;
       document.body.style.overflow = ''; // 背景のスクロールを元に戻す
+      this.scale = 1; // 拡大縮小率をリセット
     },
+    handleWheel(event) {
+      if (this.isModalOpen) {
+        event.preventDefault();
+        if (event.deltaY < 0) {
+          this.scale += 0.1;
+        } else {
+          this.scale -= 0.1;
+        }
+        this.scale = Math.min(Math.max(0.5, this.scale), 3); // 拡大縮小率の範囲を制限
+
+        if (this.$refs.modalImage) {
+          this.$refs.modalImage.style.transform = `scale(${this.scale})`;
+        }
+      }
+    },
+    handleTouchStart(event) {
+      if (event.touches.length === 2) {
+        this.initialDistance = this.getDistance(event.touches);
+      }
+    },
+    handleTouchMove(event) {
+      if (event.touches.length === 2) {
+        event.preventDefault();
+        const currentDistance = this.getDistance(event.touches);
+        const scaleChange = currentDistance / this.initialDistance;
+        this.scale = Math.min(Math.max(0.5, this.scale * scaleChange), 3); // 拡大縮小率の範囲を制限
+
+        if (this.$refs.modalImage) {
+          this.$refs.modalImage.style.transform = `scale(${this.scale})`;
+        }
+      }
+    },
+    getDistance(touches) {
+      const [touch1, touch2] = touches;
+      const dx = touch1.clientX - touch2.clientX;
+      const dy = touch1.clientY - touch2.clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    },
+    
     playVideo(index) {
       this.$set(this.visibleImages, index, { ...this.visibleImages[index], isPlaying: true });
     },
@@ -1133,19 +1181,6 @@ export default {
     },
     preventContextMenu(event) {
       event.preventDefault();
-    },
-    handleWheel(event) {
-      event.preventDefault();
-      if (event.deltaY < 0) {
-        this.scale += 0.1;
-      } else {
-        this.scale -= 0.1;
-      }
-      this.scale = Math.min(Math.max(0.5, this.scale), 3); // 拡大縮小率の範囲を制限
-
-      if (this.$refs.modalImage) {
-        this.$refs.modalImage.style.transform = `scale(${this.scale})`;
-      }
     }
   }
 }
@@ -1374,7 +1409,7 @@ export default {
 }
 
 .date {
-  color: #aaa;
+  color: var(--text-secound-color);
   font-size: 0.9em;
   text-align: right;
 }
