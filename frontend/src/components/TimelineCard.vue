@@ -401,7 +401,7 @@ export default {
             if (element.type === "emoji") {
               styledText = this.formattingContext(':' + element.name + ':', element.unicode);
             } else if (element.type === "link") {
-              styledText = `<a href="${element.url}" target="_blank">${element.text ? element.text : element.url}</a>`;
+              styledText = `<a href="${element.url}" target="_blank" class ="url">${element.text ? element.text : element.url}</a>`;
             } else if (element.type === "user") {
               styledText = '@' + element.user_id + ' ';
             } else if (element.text) { // テキストがある場合はスタイルを適用
@@ -1401,9 +1401,18 @@ export default {
   color: var(--text-url-color);
   text-decoration: none;
 }
+::v-deep .url-title {
+  color: var(--text-url-color);
+  text-align: left;
+  font-size: 14px;
+}
 
-::v-deep .url-title a:hover {
-  text-decoration: underline;
+::v-deep .url {
+  color: var(--text-url-color);
+}
+
+::v-deep .url a:hover {
+  color: var(--text-url-hover-color);
 }
 
 ::v-deep .url-preview-container {

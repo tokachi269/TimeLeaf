@@ -240,14 +240,14 @@ export default {
 }
 
 body.dark-mode {
-  --background-body: #131313;
+  --background-body: #171717;
   --background-card-body: #191919;
   --background-card-border: #686868;
-  --text-base-color: #d0d0d0;
+  --text-base-color: #c8c8c8;
   --text-secound-color: #9b9b9b;
   --text-url-color: #99bdec;
   --modal-background-color: #2c2c2c;
-  --button-active-background-color: rgb(148, 202, 104);
+  --button-active-background-color: rgb(104 149 66);
   --button-active-text-color: white;
   --button-notactive-background-color: #3e3e3e;
   --button-notactive-hover-background-color: #3b3b3b;
@@ -281,7 +281,13 @@ body.dark-mode img.invert-on-dark-mode {
   /* 高さは自動で調整 */
   height: auto;
 }
+img.logo {
+  transition: filter 0.3s ease;
+}
 
+body.dark-mode img.logo {
+  filter: brightness(0.8) saturate(1.2);/* 明度と彩度の調整 */
+}
 .header-container {
   display: flex;
   justify-content: center;
@@ -306,7 +312,7 @@ body.dark-mode img.invert-on-dark-mode {
 }
 .settings-button {
   position: absolute;
-  right: 20px;
+  right: 30px;
   z-index: 1000;
   cursor: pointer;
   width: 20px;
