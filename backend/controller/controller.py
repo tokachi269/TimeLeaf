@@ -180,36 +180,36 @@ def get_slack_messages():
     if response.status_code == 200:
         res = response.json()
         if res.get("ok"):
+            # "messages"キーが存在し、"matches"キーが存在するか確認
             messages_data = res.get("messages", {})
-            if "matches" in messages_data:
-                messages = messages_data.get("matches", [])
-                
-                # 再帰的にelementsを処理する関数
-                def process_elements(elements):
-                    for element in elements:
-                        if element.get("type") == "user":
-                            user_id = element.get("user_id")
-                            user_name = user_id  # デフォルトはuser_id
-                            for user in user_cache:
-                                if user["id"] == user_id:
-                                    user_name = user["profile"].get("display_name", user["profile"].get("real_name", user_id))
-                                    break
-                            element["user_name"] = user_name  # user_nameを追加
-                        elif "elements" in element:
-                            process_elements(element["elements"])  # 再帰的に処理
+            matches = messages_data.get("matches", [])
 
-                # 各メッセージのblocksを処理
-                for message in messages:
-                    blocks = message.get("blocks", [])
-                    for block in blocks:
-                        if "elements" in block:
-                            process_elements(block["elements"])
+            # 再帰的にelementsを処理する関数
+            def process_elements(elements):
+                for element in elements:
+                    if element.get("type") == "user":
+                        user_id = element.get("user_id")
+                        user_name = user_id  # デフォルトは user_id
+                        for user in user_cache:
+                            if user["id"] == user_id:
+                                user_name = user["profile"].get("display_name", user["profile"].get("real_name", user_id))
+                                break
+                        element["user_name"] = user_name  # user_name を追加
+                    elif "elements" in element:
+                        process_elements(element["elements"])  # 再帰的に処理
 
-                return jsonify(messages)
-            else:
-                return jsonify(messages_data)
+            # 各メッセージのblocksを処理
+            for message in matches:
+                blocks = message.get("blocks", [])
+                for block in blocks:
+                    if "elements" in block:
+                        process_elements(block["elements"])
+
+            # messages_data に上書きして返す
+            messages_data["matches"] = matches
+            return jsonify(messages_data), 200
         else:
-            return jsonify(res)
+            return jsonify(res), 400
     else:
         return jsonify({"error": "Failed to fetch messages"}), 500
 
