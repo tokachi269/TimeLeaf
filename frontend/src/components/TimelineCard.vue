@@ -898,7 +898,7 @@ export default {
     onScroll() {
       // ユーザーポップアップが表示されている場合は閉じる
       this.isScrolling = true;
-      if (this.isUserListVisible && !this.isTouchDevice) {
+      if (this.isUserListVisible) {
         this.isUserListVisible = false;
       }
       // 100ms 後にスクロールが止まったと判断

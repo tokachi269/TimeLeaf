@@ -55,6 +55,7 @@ export default {
   },
   data() {
     return {
+      isTouchDevice: 'ontouchstart' in window, // タッチデバイスの判定
       isFollowing: true, // フォロー中タイムラインor全体タイムラインを管理
       posts: [], // タイムラインデータを保持
       page: 1, // ページ番号
@@ -358,7 +359,7 @@ export default {
     onScroll() {
       // ユーザーポップアップが表示されている場合は閉じる
       this.isScrolling = true;
-      if (this.showEmojiPicker) {
+      if (this.showEmojiPicker && !this.isTouchDevice) {
         this.showEmojiPicker = false;
       }
       // スクロール位置を監視してボタンを表示
