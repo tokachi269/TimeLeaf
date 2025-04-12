@@ -253,7 +253,7 @@ export default {
                 isMaster: isMaster,
                 isFollowed: isFollowed,
                 content: formattedContent,  // メッセージ内容 (画像に変換済み)
-                thumbnailHtmls: msg.attachments,
+                attachments: msg.attachments,
                 files: msg.files,
                 urls: this.urls,
                 date: new Date(msg.ts * 1000).toLocaleString(), // タイムスタンプを日付に変換

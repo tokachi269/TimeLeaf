@@ -174,13 +174,36 @@ def get_slack_messages():
         "query": query,
         "cursor": cursor,
         "limit": 30,
-        "sort":"timestamp"
+        "sort": "timestamp"
     }
     response = requests.get(url, headers=headers, params=params)
     if response.status_code == 200:
-        res = response.json() 
-        if response.json().get("ok"):
-            return jsonify(res.get("messages"))
+        res = response.json()
+        if res.get("ok"):
+            messages = res.get("messages", {}).get("matches", [])
+            
+            # 再帰的にelementsを処理する関数
+            def process_elements(elements):
+                for element in elements:
+                    if element.get("type") == "user":
+                        user_id = element.get("user_id")
+                        user_name = user_id  # デフォルトはuser_id
+                        for user in user_cache:
+                            if user["id"] == user_id:
+                                user_name = user["profile"].get("display_name", user["profile"].get("real_name", user_id))
+                                break
+                        element["user_name"] = user_name  # user_nameを追加
+                    elif "elements" in element:
+                        process_elements(element["elements"])  # 再帰的に処理
+
+            # 各メッセージのblocksを処理
+            for message in messages:
+                blocks = message.get("blocks", [])
+                for block in blocks:
+                    if "elements" in block:
+                        process_elements(block["elements"])
+
+            return jsonify(messages)
         else:
             return jsonify(res)
     else:

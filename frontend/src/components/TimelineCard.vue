@@ -744,8 +744,8 @@ export default {
       return file;
     },
     extractThumbnail(localPost) {
-      if (localPost && localPost.thumbnailHtmls && localPost.thumbnailHtmls.length > 0) {
-        const attachment = localPost.thumbnailHtmls[0]; // 最初の添付情報を取得
+      if (localPost && localPost.attachments && localPost.attachments.length > 0) {
+        const attachment = localPost.attachments[0]; // 最初の添付情報を取得
         if (attachment.service_name === "X (formerly Twitter)") {
           return `
             <div class="twitter-preview">
