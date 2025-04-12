@@ -279,7 +279,7 @@ def get_slack_times_channels():
         "Authorization": f"{token}",
     }
     params = {
-        "limit": 200,
+        "limit": 500,
         "types":"public_channel"
     }
     response = requests.get(url, headers=headers, params=params)
