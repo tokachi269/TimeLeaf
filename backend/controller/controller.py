@@ -220,6 +220,7 @@ def get_slack_message_replies():
     ts = request.args.get("ts")
     global user_cache
     global last_user_update
+
     # キャッシュが古い場合は更新
     if time.time() - last_user_update > USER_CACHE_DURATION:
         update_user_cache()
@@ -230,47 +231,72 @@ def get_slack_message_replies():
     }
     params = {
         "channel": channel,
-      #    "cursor": cursor,
         "ts": ts,
-      #  "limit": 100,
     }
 
     response = requests.get(url, headers=headers, params=params)
     if response.status_code == 200:
-        res = response.json() 
-        if response.json().get("ok"):
-            for message in res.get("messages"):
+        res = response.json()
+        if res.get("ok"):
+            messages = res.get("messages", [])
+
+            # 再帰的に elements を処理する関数
+            def process_elements(elements):
+                for element in elements:
+                    if element.get("type") == "user":
+                        user_id = element.get("user_id")
+                        user_name = user_id  # デフォルトは user_id
+                        for user in user_cache:
+                            if user["id"] == user_id:
+                                user_name = user["profile"].get("display_name", user["profile"].get("real_name", user_id))
+                                break
+                        element["user_name"] = user_name  # user_name を追加
+                    elif "elements" in element:
+                        process_elements(element["elements"])  # 再帰的に処理
+
+            # 各メッセージの blocks を処理
+            for message in messages:
+                blocks = message.get("blocks", [])
+                for block in blocks:
+                    if "elements" in block:
+                        process_elements(block["elements"])
+
+                # ユーザー情報を追加
                 postUser = message.get("user")
                 user_real_name = ""
+                user_name = ""
+                user_img_src = ""
                 for user in user_cache:
                     if user["id"] == postUser:
                         user_real_name = user["profile"].get("display_name", user["profile"].get("real_name", "Unknown User"))
                         user_name = user["profile"].get("real_name", "Unknown User")
                         user_img_src = user["profile"].get("image_72")
                         break
+
                 # メッセージにユーザー名と和名を追加
                 message["user_real_name"] = user_real_name
                 message["user_name"] = user_name
                 message["user_image"] = user_img_src
+
+                # reactions のユーザー情報を更新
                 if message.get("reactions"):
                     for reaction in message.get("reactions"):
-                            updated_users = []
-                            for user_id in reaction.get("users", []):
-                                # user_cache からユーザー名を取得。存在しない場合は user_id のまま
-                                user_real_name = ""
-                                for user in user_cache:
-                                    if user["id"] == user_id:
-                                        user_real_name = user["profile"].get("display_name", user["profile"].get("real_name", "Unknown User"))
-                                        break
+                        updated_users = []
+                        for user_id in reaction.get("users", []):
+                            # user_cache からユーザー名を取得。存在しない場合は user_id のまま
+                            user_real_name = ""
+                            for user in user_cache:
+                                if user["id"] == user_id:
+                                    user_real_name = user["profile"].get("display_name", user["profile"].get("real_name", "Unknown User"))
+                                    break
+                            updated_users.append({"id": user_id, "name": user_real_name})
+                        # users リストを更新
+                        reaction["users"] = updated_users
 
-                                updated_users.append({"id":user_id, "name":user_real_name })
-                            # users リストを更新
-                            reaction["users"] = updated_users
-            messages = jsonify(res.get("messages"))
-           # messages.headers['Cache-Control'] = 'public, max-age=60'  # 1 分間キャッシュ
-            return messages
+            # メッセージを返す
+            return jsonify(messages), 200
         else:
-            return jsonify(res)
+            return jsonify(res), 400
     else:
         return jsonify({"error": "Failed to fetch messages"}), 500
 

@@ -141,11 +141,17 @@
                           <span v-html="getEmojiForReaction(reaction.name)"></span>
                           <span class="reaction-count">{{ reaction.count }}</span>
                         </div>
+                        <div v-if="reply.reactions.length != 0" @click="openEmojiPicker(reply.ts, $event)"
+                          class="reaction-item">
+                          <img src="./../assets/emoji-add.png" alt="Add Reaction"
+                            class="emoji-image invert-on-dark-mode">
+                        </div>
                       </div>
                       <div class="detail-list">
-                        <div v-if="reactions.length != 0" @click="openEmojiPicker(reply.ts, $event)"
-                          class="reaction-item">
-                          <img src="./../assets/emoji-add.png" alt="Add Reaction" class="emoji-image invert-on-dark-mode">
+                        <div v-if="!reply.reactions || reply.reactions && reply.reactions.length == 0"
+                          @click="openEmojiPicker(reply.ts, $event)" class="reaction-item">
+                          <img src="./../assets/emoji-add.png" alt="Add Reaction"
+                            class="emoji-image invert-on-dark-mode">
                         </div>
                         <span class="date">{{ new Date(reply.ts * 1000).toLocaleString() }}</span>
                       </div>
@@ -278,7 +284,7 @@ export default {
     window.addEventListener('wheel', this.handleWheel, { passive: false });
     window.addEventListener('touchstart', this.handleTouchStart, { passive: false });
     window.addEventListener('touchmove', this.handleTouchMove, { passive: false });
- 
+
     // タップイベントリスナー (スマホ)
     if (this.isTouchDevice) {
       window.addEventListener("touchstart", this.onTap);
@@ -353,7 +359,7 @@ export default {
     window.removeEventListener('wheel', this.handleWheel);
     window.removeEventListener('touchstart', this.handleTouchStart);
     window.removeEventListener('touchmove', this.handleTouchMove);
- 
+
     // タップイベントリスナー (スマホ)
     if (this.isTouchDevice) {
       window.removeEventListener("touchstart", this.onTap);
@@ -411,7 +417,7 @@ export default {
             } else if (element.type === "link") {
               styledText = `<a href="${element.url}" target="_blank" class ="url">${element.text ? element.text : element.url}</a>`;
             } else if (element.type === "user") {
-              styledText = '@' + element.user_id + ' ';
+              styledText = '@' + element.user_name + ' ';
             } else if (element.text) { // テキストがある場合はスタイルを適用
               if (element.style) {
                 if (element.style.code) {
@@ -447,7 +453,7 @@ export default {
                 } else if (element.type === "link") {
                   styledText = `<a href="${element.url}" target="_blank">${element.text ? element.text : element.url}</a>`;
                 } else if (element.type === "user") {
-                  styledText = '@' + element.user_id + ' ';
+                  styledText = '@' + element.user_name + ' ';
                 } else if (subElement.text) {
                   let subStyledText = subElement.text ? element.text : "";
                   if (subElement.style) {
@@ -572,7 +578,7 @@ export default {
       return markdownText;
     },
 
-    formattingContext(context , unicode) {
+    formattingContext(context, unicode) {
       if (unicode) {
         return `<span class="emoji-image">${this.convertToHtmlEntity(unicode)}</span>`;
       }
@@ -885,7 +891,7 @@ export default {
       const dy = touch1.clientY - touch2.clientY;
       return Math.sqrt(dx * dx + dy * dy);
     },
-    
+
     playVideo(index) {
       this.$set(this.visibleImages, index, { ...this.visibleImages[index], isPlaying: true });
     },
@@ -1020,14 +1026,14 @@ export default {
     async insertOrDeleteReaction(name, parentTs, threadTs, needDelete) {
       console.log('insertOrDeleteReaction emoji');
       // 選択した絵文字がリアクション済みか確認
-      let reaction = this.existsReaction(name, parentTs === threadTs ? parentTs : threadTs);
-      let reactionList = this.existsReactionsList(parentTs === threadTs ? parentTs : threadTs);
+      let reaction = this.existsReaction(name, threadTs);
+      let reactionList = this.existsReactionsList(threadTs);
       const isReacted = reaction?.users.some(user => user.id === this.localPost.accessedId);
 
       if (isReacted && reaction) {
         // リアクション済みの場合削除or何もしない
         if (needDelete) {
-          await this.fetchDeleteReaction(name, parentTs);
+          await this.fetchDeleteReaction(name, threadTs);
           const index = reactionList?.findIndex(reaction => reaction.name === name);
           if (reaction.count == 1) {
             // リアクションのカウントが0人になったら削除
@@ -1036,7 +1042,7 @@ export default {
               this.isUserListVisible = false;
             }
           } else {
-            //リアクションのカウントが0人でなければユーザーのみ消す
+            // リアクションのカウントが0人でなければユーザーのみ消す
             reaction.count -= 1;
             const userIndex = reaction.users.findIndex(user => user.id === this.localPost.accessedId);
             if (userIndex !== -1) {
@@ -1050,11 +1056,11 @@ export default {
         }
       } else {
         // リアクション追加
-        // slackにリクエスト
-        const successedReactName = await this.fetchAddReaction(name, parentTs);
+        // Slackにリクエスト
+        const successedReactName = await this.fetchAddReaction(name, threadTs);
         if (successedReactName) {
-          //該当の絵文字が存在すれば既存のオブジェクトに追加し、なければ新規追加
-          const existingReaction = this.existsReaction(successedReactName, parentTs === threadTs ? parentTs : threadTs);
+          // 該当の絵文字が存在すれば既存のオブジェクトに追加し、なければ新規追加
+          const existingReaction = this.existsReaction(successedReactName, threadTs);
           if (existingReaction) {
             existingReaction.count += 1;
             existingReaction.users.push({ id: this.localPost.accessedId, name: this.localPost.accessedName });
@@ -1074,12 +1080,14 @@ export default {
                 "users": [{ id: this.localPost.accessedId, name: this.localPost.accessedName }]
               });
             } else {
-              const message = this.replies?.find((msg) => msg.ts === (parentTs === threadTs ? parentTs : threadTs));
-              message.reactionList = {
-                "count": 1,
-                "name": successedReactName,
-                "users": [{ id: this.localPost.accessedId, name: this.localPost.accessedName }]
-              };
+              const message = this.replies?.find((msg) => msg.ts === threadTs);
+              if (message) {
+                message.reactions = [{
+                  "count": 1,
+                  "name": successedReactName,
+                  "users": [{ id: this.localPost.accessedId, name: this.localPost.accessedName }]
+                }];
+              }
             }
           }
         }
@@ -1340,12 +1348,12 @@ export default {
 .username {
   font-weight: bold;
   font-size: 0.9em;
-  color: var( --text-base-color);
+  color: var(--text-base-color);
 }
 
 .username-en {
   font-size: 0.9em;
-  color: var( --text-secound-color);
+  color: var(--text-secound-color);
 }
 
 .content-wrapper {
@@ -1436,6 +1444,7 @@ export default {
   color: var(--text-url-color);
   text-decoration: none;
 }
+
 ::v-deep .url-title {
   color: var(--text-url-color);
   text-align: left;
