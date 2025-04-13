@@ -359,7 +359,7 @@ export default {
     onScroll() {
       // ユーザーポップアップが表示されている場合は閉じる
       this.isScrolling = true;
-      if (this.isUserListVisible) {
+      if (this.showEmojiPicker) {
         this.showEmojiPicker = false;
       }
       // スクロール位置を監視してボタンを表示
