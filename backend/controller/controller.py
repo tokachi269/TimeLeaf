@@ -19,9 +19,9 @@ load_dotenv()
 app = Flask(__name__)
 controller_bp = Blueprint('controller', __name__, url_prefix='/api')
 
-SLACK_CLIENT_ID = "REMOVED"
-SLACK_CLIENT_SECRET = "REMOVED"
-SLACK_BOT_TOKEN = "REMOVED"
+SLACK_CLIENT_ID = os.getenv("SLACK_CLIENT_ID")
+SLACK_CLIENT_SECRET = os.getenv("SLACK_CLIENT_SECRET")
+SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
 
 # 初期化
 authorize_url_generator = AuthorizeUrlGenerator(
@@ -136,7 +136,6 @@ def oauth_redirect():
                 if user["id"] == res.get("authed_user").get('id'):
                     user_info = user["profile"]
                     break
-            print("Accessed User:" + user_info.get('real_name_normalized'))
             return jsonify({"token":res.get("authed_user").get('access_token'),
                             "scope":res.get("authed_user").get('scope'),
                             "id":res.get("authed_user").get('id'),

@@ -290,31 +290,6 @@ export default {
         }
       }, 2000);
     },
-    formattingContext(context) {
-      // メッセージ内容に含まれる絵文字コードを画像URLまたはUnicodeに変換
-      let formattedContent = context.text.replace(/:([^\s:]+):/g, (match, emojiName) => {
-        // emojiMap から画像URLを取得し、該当する画像タグに変換
-        const emoji = this.emojiMap.find(e => e.name === emojiName);
-        if (emoji) {
-          return `<img src="${emoji.imageUrl}" alt="${emoji.name}" class="emoji-image" @contextmenu="preventContextMenu">`;
-        }
-
-        // emojiMapに存在しない場合、unicodeEmojisで検索
-        const unicodeEmoji = unicodeEmojis.find(emoji => emoji?.short_name === emojiName);
-        if (unicodeEmoji) {
-          return `<span class="emoji-image">${this.convertToHtmlEntity(unicodeEmoji.unified)}</span>`;  // Unicode絵文字を返す
-        }
-
-        return match;  // 見つからなければ元の文字列を返す
-      });
-      formattedContent = formattedContent.replace(/\n/g, '<br>');
-      // 正規表現でマッチ
-      formattedContent = this.replaceHtmlTag(formattedContent.replace(/<@(\w+)\s*\|([^\\>]+)>/g, (_, id, name) => {
-        return `<span class="mention" data-id="${id}">@${name}</span>`;
-      }));
-      return formattedContent;
-
-    },
     replaceHtmlTag(content) {
       // 正規表現: URL単体またはラベル付きURLにマッチ
       const pattern = /<(https?:\/\/[^|>]+)\|([^>]+)>|<(https?:\/\/[^>]+)>/g;
@@ -363,7 +338,7 @@ export default {
         this.showEmojiPicker = false;
       }
       // スクロール位置を監視してボタンを表示
-      this.showScrollToTop = window.scrollY > 800; // 200px以上スクロールしたらボタンを表示
+      this.showScrollToTop = window.scrollY > 800; // XXpx以上スクロールしたらボタンを表示
 
       // 100ms 後にスクロールが止まったと判断
       clearTimeout(this.scrollTimeout);
@@ -549,7 +524,6 @@ export default {
   z-index: 1000;
   display: flex;
   flex-direction: column;
-  /* 中央揃え */
   align-items: center;
 }
 

@@ -225,15 +225,15 @@ export default {
       userName: "",
       userNameEn: "",
       userImage: "",
-      isModalOpen: false, // モーダルが開いているか
-      modalImageUrl: "", // モーダルに表示する画像のURL
+      isModalOpen: false,
+      modalImageUrl: "",
       isExpanded: false,
       showExpandButton: false,
       maxHeight: 500, // imageGalleryの初期最大高
       isUserListVisible: false,
       isScrolling: false,
       isTouchDevice: 'ontouchstart' in window, // タッチデバイスの判定
-      isTapped: false, // タップ状態を管理
+      isTapped: false,
       hoveredUsers: [],
       hoveredReactionName: "",
       popupPosition: { top: 0, left: 0 },
@@ -245,7 +245,6 @@ export default {
       showThread: false, // スレッドの表示/非表示を管理
       imageLoaded: false,
       spotifyPlayer: null,
-      spotifyAccessToken: 'BQAcpweXtWYvHjWVJggLguR6iDM4eZjl41v53-Vp7I4kBGzAXe3CJgKdrcFV10Np2-fci-cUOFo3UhRSdjmfPDTY0IRs-CiDJsyv9sUxV7o-WeddLQ81_Qa3EevLOi5QgMD5wjlmipsUB3AF1Zt784DHDWZ9cEY5C7o56mAk37oiYPlPFHMjcOTDzLUHcHha4nzWmgUEB18H6jJ4sdRMb1oON3DvAYJfmQCdpMB0op2Tz5mxwR7Vp_s7D8II', // ここにSpotifyのアクセストークンを設定
       deviceId: null,
       currentTrackUri: null,
       scale: 1, // 追加: 拡大縮小率を管理する変数
@@ -1218,12 +1217,9 @@ export default {
 /* cssの共通値 */
 :root {
   --user-image-size: 50px;
-  /* ユーザー画像のサイズ */
   --padding: 16px;
   --border-radius: 8px;
-  /* ボーダーの角の丸み */
   --box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
-  /* ボックスシャドウ */
 }
 
 .card {
@@ -1240,7 +1236,6 @@ export default {
 
 ::v-deep .highlight {
   background-color: rgba(175, 245, 115, 0.308) !important;
-  /* ハイライトのスタイル */
 }
 
 ::v-deep .emoji-image {
@@ -1262,7 +1257,6 @@ export default {
 }
 
 ::v-deep .add-reaction-image {
-  /* v-deepをつけないとv-htmlで挿入したhtmlタグにcssが適用されない */
   display: inline-block;
   vertical-align: middle;
   width: 1.5em;
@@ -1273,7 +1267,6 @@ export default {
 }
 
 .add-reaction-image .emoji-image {
-  /* v-deepをつけないとv-htmlで挿入したhtmlタグにcssが適用されない */
   width: 1.3em;
   height: 1.3em;
   opacity: 70%;
@@ -1312,7 +1305,6 @@ export default {
 
 .channel-name {
   font-weight: bold;
-  /* ユーザー情報との間にマージンを追加 */
   margin-bottom: 8px;
   /* テキストの色を継承 */
   color: inherit;
@@ -1323,7 +1315,6 @@ export default {
 .header {
   height: 16px;
   display: flex;
-  /* 画像とユーザー情報を上に揃える */
   align-items: flex-start;
 }
 
@@ -1339,9 +1330,7 @@ export default {
   flex-grow: 1;
   display: flex;
   text-align: left;
-  /* 垂直方向に中央揃え */
   align-items: center;
-  /* 要素間のスペースを設定 */
   gap: 8px;
 }
 
@@ -1407,9 +1396,7 @@ export default {
 
 .detail-list {
   display: flex;
-  /* 必要に応じて折り返し可能に */
   flex-wrap: wrap;
-  /* アイテム間のスペース */
   gap: 20px;
   padding: 5px;
   justify-content: flex-end;
@@ -1518,10 +1505,8 @@ export default {
 .image-item img {
   width: 100%;
   height: auto;
-  /* 画像の最大高さを設定 */
   max-height: 500px;
   object-fit: cover;
-  /* 画像に角丸を付ける（任意） */
   border-radius: 8px;
 }
 
@@ -1536,9 +1521,8 @@ export default {
   justify-content: center;
   align-items: center;
   overflow: auto;
-  /* スクロールを有効にする */
-  z-index: 1000;
   /* 表示順序を最前面にする */
+  z-index: 1000;
 }
 
 .modal-image {
@@ -1546,7 +1530,6 @@ export default {
   max-height: 100%;
   object-fit: contain;
   touch-action: pinch-zoom;
-  /* ピンチズームを有効にする */
 }
 
 .expand-button {
@@ -1577,9 +1560,7 @@ export default {
 
 .reaction-list {
   display: flex;
-  /* 必要に応じて折り返し可能に */
   flex-wrap: wrap;
-  /* アイテム間のスペース */
   gap: 10px;
   padding: 5px;
 }
@@ -1593,8 +1574,8 @@ export default {
   font-size: .8em;
   border-radius: 7px;
   box-shadow: 0 2px 3px #0003;
-  user-select: none;
   /* 文字を選択できなくする */
+  user-select: none;
 }
 
 /* スクロール中は拡大を無効化 */
@@ -1810,17 +1791,17 @@ export default {
 
   /* 横スクロールバーを表示 */
   overflow: auto !important;
-  white-space: pre !important;
   /* 改行を保持 */
+  white-space: pre !important;
 }
 
 ::v-deep pre code.hljs {
   display: block !important;
   min-width: 100% !important;
-  overflow-x: scroll !important;
   /* 横スクロールバーを表示 */
-  white-space: pre !important;
+  overflow-x: scroll !important;
   /* 改行を保持 */
+  white-space: pre !important;
 }
 
 ::v-deep p {
@@ -1836,9 +1817,7 @@ export default {
   flex-grow: 1;
   display: flex;
   text-align: left;
-  /* 垂直方向に中央揃え */
   align-items: center;
-  /* 要素間のスペースを設定 */
   gap: 8px;
 }
 
@@ -1858,7 +1837,6 @@ export default {
 ::v-deep .twitter-content {
   margin-bottom: 5px;
   text-align: left;
-  /* 子要素を中央揃え */
   align-items: center;
   padding: 10px;
 }

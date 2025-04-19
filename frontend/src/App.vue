@@ -70,7 +70,6 @@ export default {
   },
   mounted() {
     // OSの設定を読み込む
-   // const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)").matches;
     const savedTheme = localStorage.getItem('darkMode');
     if (savedTheme === null) {
       this.isDarkMode = false;//prefersDarkScheme;
@@ -92,8 +91,6 @@ export default {
   },
   methods: {
     async init() {
-      //console.log('Code received in TimelineView:', this.code);
-      //console.log('AccessToken received in TimelineView:', this.accessToken);
       // アプリ起動時にCookieをチェック
       this.accessToken = this.getCookie('token');
       this.id = this.getCookie('id');
@@ -278,9 +275,7 @@ body.dark-mode img.invert-on-dark-mode {
 }
 
 .logo {
-  /* 幅を200pxに設定 */
   width: 350px;
-  /* 高さは自動で調整 */
   height: auto;
 }
 img.logo {
@@ -288,7 +283,7 @@ img.logo {
 }
 
 body.dark-mode img.logo {
-  filter: brightness(0.9) saturate(1.1) /* 明度と彩度の調整 */
+  filter: brightness(0.9) saturate(1.1) 
 }
 .header-container {
   display: flex;
