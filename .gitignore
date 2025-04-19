@@ -6,8 +6,10 @@ frontend/.env
 *.csr
 *.crt
 # Python bytecode files
-**/__pycache__/**
+__pycache__/
+**/__pycache__/
 *.py[cod]
+
 *.env
 *.pem
 /frontend/dist
