@@ -1,20 +1,15 @@
 import time
-from flask import Flask, redirect, request, session, jsonify, url_for , send_file, Response
-from slack_sdk import WebClient
-from slack_sdk.errors import SlackApiError
-from flask_cors import cross_origin
+from flask import Flask, request, jsonify , Response
 from dotenv import load_dotenv
 from flask import Blueprint
 from slack_sdk.oauth import AuthorizeUrlGenerator
-from io import BytesIO
 import requests
 import os
-import os
-from datetime import datetime, timedelta
 from urllib.parse import urlparse
 
 # 環境変数を読み込み
-load_dotenv()
+dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+load_dotenv(dotenv_path=dotenv_path)
 
 app = Flask(__name__)
 controller_bp = Blueprint('controller', __name__, url_prefix='/api')
