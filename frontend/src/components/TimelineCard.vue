@@ -404,36 +404,52 @@ export default {
         return content.text;
       }
       let formattedText = '';
-      let subListIndex = 1;
 
       // 再帰的にelementsを処理する関数
       const processElements = (elements, isList = false, isOrderedList = false, listIndex = 1) => {
+        const applyStyles = (text, style) => {
+          if (style?.code) text = '`' + text + '`';
+          if (style?.bold) text = '<strong>' + text + '</strong>';
+          if (style?.italic) text = '<p class="custom-italic">' + text + '</p>';
+          if (style?.strike) text = '~~' + text + '~~';
+          return text;
+        };
+
         elements.forEach(element => {
-          let styledText = element.text ? element.text : "";
+          let styledText = element.text || "";
+
+          // `rich_text_preformatted` の特別処理
+          if (element.type === "rich_text_preformatted") {
+            console.log("Processing rich_text_preformatted:", element); // デバッグ用
+
+            // 再帰的に内部の elements を処理
+            let preformattedText = '';
+            if (element.elements) {
+              element.elements.forEach(innerElement => {
+                if (innerElement.text) {
+                  preformattedText += applyStyles(innerElement.text, innerElement.style);
+                } else if (innerElement.elements) {
+                  processElements(innerElement.elements); // 再帰処理
+                }
+              });
+            }
+
+            styledText = `<pre class="pre"><div>${preformattedText}</div></pre>`;
+            formattedText += styledText;
+            return; // 再帰処理をスキップ
+          }
+
           if (!element.elements) {
             if (element.type === "emoji") {
               styledText = this.formattingContext(':' + element.name + ':', element.unicode);
             } else if (element.type === "link") {
-              styledText = `<a href="${element.url}" target="_blank" class ="url">${element.text ? element.text : element.url}</a>`;
+              styledText = `<a href="${element.url}" target="_blank" class="url">${element.text || element.url}</a>`;
             } else if (element.type === "user") {
               styledText = '@' + element.user_name + ' ';
-            } else if (element.text) { // テキストがある場合はスタイルを適用
-              if (element.style) {
-                if (element.style.code) {
-                  styledText = '`' + styledText + '`';
-                }
-                if (element.style.bold) {
-                  styledText = '<strong>' + styledText + '</strong>';
-                }
-                if (element.style.italic) {
-                  styledText = '<p class="custom-italic">' + styledText + '</p>';
-                }
-                if (element.style.strike) {
-                  styledText = '~~' + styledText + '~~';
-                }
-              }
+            } else if (element.type === "text") {
+              styledText = applyStyles(styledText, element.style);
             }
-            // テキストを結合
+
             if (isOrderedList) {
               formattedText += `${listIndex}. ${styledText}\n`;
               listIndex++;
@@ -442,63 +458,19 @@ export default {
             } else {
               formattedText += styledText;
             }
-            // ネストされたelementsがある場合は再帰的に処理
           } else {
-            if (element.type === "rich_text_list") {
-              // "rich_text_list"の場合はその中身を改行で結合
-              element.elements.forEach(subElement => {
-                if (element.type === "emoji") {
-                  styledText = this.formattingContext(':' + element.name + ':', element.unicode);
-                } else if (element.type === "link") {
-                  styledText = `<a href="${element.url}" target="_blank">${element.text ? element.text : element.url}</a>`;
-                } else if (element.type === "user") {
-                  styledText = '@' + element.user_name + ' ';
-                } else if (subElement.text) {
-                  let subStyledText = subElement.text ? element.text : "";
-                  if (subElement.style) {
-                    if (subElement.style.code) {
-                      subStyledText = '`' + subStyledText + '`';
-                    }
-                    if (subElement.style.bold) {
-                      subStyledText = '<strong>' + subStyledText + '</strong>';
-                    }
-                    if (subElement.style.italic) {
-                      subStyledText = '<p class="custom-italic">' + subStyledText + '</p>';
-                    }
-                    if (element.style.strike) {
-                      styledText = '~~' + styledText + '~~';
-                    }
-                  } else {
-                    if (element.type === "emoji") {
-                      subStyledText = this.formattingContext(':' + element.name + ':');
-                    }
-                  }
-                  if (element.style && element.style === "ordered") {
-                    formattedText += `${subListIndex}. ${subStyledText}\n`;
-                    subListIndex++;
-                  } else {
-                    formattedText += `* ${subStyledText}\n`;
-                  }
-                }
-                // subElementの中に再帰的にelementsがある場合
-                if (subElement.elements) {
-                  processElements(subElement.elements, true, element.style && element.style === "ordered", subListIndex);
-                }
-              });
-            } else {
-              processElements(element.elements);
-            }
+            processElements(element.elements, element.type === "rich_text_list", element.style?.ordered, listIndex);
           }
-        });
-      };
+  });
+};
 
       // 各ブロックをループ
       blocks?.forEach(block => {
         processElements(block.elements);
       });
-      // if (content.text && content.text.includes('言語化の重要な')) {
-      //   console.log(formattedText);
-      // }
+      if (content.text && content.text.includes('Qilin')) {
+        console.log(formattedText);
+      }
       return formattedText;
     },
     compiledMarkdown(content) {
@@ -1786,15 +1758,6 @@ export default {
   color: #555;
 }
 
-::v-deep pre {
-  min-width: 100% !important;
-
-  /* 横スクロールバーを表示 */
-  overflow: auto !important;
-  /* 改行を保持 */
-  white-space: pre !important;
-}
-
 ::v-deep pre code.hljs {
   display: block !important;
   min-width: 100% !important;
@@ -1862,5 +1825,19 @@ export default {
   -o-object-fit: cover;
   object-fit: cover;
   border-radius: 8px;
+}
+
+::v-deep pre {
+    border: 1px solid var(--background-card-border);
+    font-variant-ligatures: none;
+    white-space: pre-wrap; /* 改行を保持しつつ折り返し */
+  word-wrap: break-word; /* 長い単語を折り返す */
+  word-break: break-word; /* 単語の途中で改行 */
+  overflow-x: auto; /* 横スクロールを有効にする */
+    tab-size: 4;
+    border-radius: 4px;
+    margin-bottom: 16px;
+    padding: 8px;
+    font-family: Monaco, Menlo, Consolas, Courier New, monospace !important;
 }
 </style>

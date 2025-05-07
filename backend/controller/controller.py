@@ -326,27 +326,6 @@ def get_slack_times_channels():
     else:
         return jsonify({"error": "Failed to fetch timesChannels"}), 500
 
-
-@controller_bp.route('/v1/slack/emojis', methods=['GET'])
-def get_slack_reactions_v1():
-    token = request.headers.get('authorization')
-
-    url = "https://slack.com/api/emoji.list"
-    headers = {
-        "Authorization": token,
-    }
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        res = response.json() 
-        if response.json().get("ok"):
-            emojis = jsonify(res.get("emoji"))
-            emojis.headers['Cache-Control'] = 'public, max-age=3600' # 60 分間キャッシュ
-            return emojis
-        else:
-            return jsonify(res)
-    else:
-        return jsonify({"error": "Failed to fetch emoji"}), 500
-    
 @controller_bp.route('/v2/slack/emojis', methods=['GET'])
 def get_slack_reactions_v2():
     token = request.headers.get('authorization')
@@ -357,6 +336,9 @@ def get_slack_reactions_v2():
         update_reaction_cache()
 
     if reaction_cache:
+        authTest = auth_test(token)
+        if not authTest:
+            return jsonify({"error": "Invalid token"}), 400
         res = jsonify(reaction_cache)
         res.headers['Cache-Control'] = 'public, max-age=3600' # 60 分間キャッシュ
         return res
@@ -522,3 +504,28 @@ def get_image():
         return flask_response
     else:
         return jsonify({"error": "Failed to fetch image"}), 500
+
+@app.route("/v1/slack/events", methods=["POST"])
+def slack_events():
+    data = request.json
+
+    # URL確認リクエスト（初回設定時）
+    if data.get("type") == "url_verification":
+        return jsonify({"challenge": data["challenge"]})
+
+    # 通常のイベント
+    event = data.get("event", {})
+    event_type = event.get("type")
+
+    if event_type == "reaction_added":
+        # リアクションが追加されたときの処理
+        # 例: socketio.emit('reaction_added', {...})
+        pass
+
+    elif event_type == "message":
+        if event.get("subtype") is None:  # subtype があると botメッセージや編集になる
+            # ユーザーのメッセージ投稿時の処理
+            # 例: socketio.emit('new_message', {...})
+            pass
+
+    return "", 200
