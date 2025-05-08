@@ -406,22 +406,12 @@ export default {
       let formattedText = '';
 
       // 再帰的にelementsを処理する関数
-      const processElements = (elements, isList = false, isOrderedList = false, listIndex = 1) => {
-        const applyStyles = (text, style) => {
-          if (style?.code) text = '`' + text + '`';
-          if (style?.bold) text = '<strong>' + text + '</strong>';
-          if (style?.italic) text = '<p class="custom-italic">' + text + '</p>';
-          if (style?.strike) text = '~~' + text + '~~';
-          return text;
-        };
+      const processElements = (elements) => {
 
         elements.forEach(element => {
           let styledText = element.text || "";
 
-          // `rich_text_preformatted` の特別処理
           if (element.type === "rich_text_preformatted") {
-            console.log("Processing rich_text_preformatted:", element); // デバッグ用
-
             // 再帰的に内部の elements を処理
             let preformattedText = '';
             if (element.elements) {
@@ -429,15 +419,42 @@ export default {
                 if (innerElement.text) {
                   preformattedText += applyStyles(innerElement.text, innerElement.style);
                 } else if (innerElement.elements) {
-                  processElements(innerElement.elements); // 再帰処理
+                  processElements(innerElement.elements);
                 }
               });
             }
 
             styledText = `<pre class="pre"><div>${preformattedText}</div></pre>`;
             formattedText += styledText;
-            return; // 再帰処理をスキップ
+            return;
           }
+
+          if (element.type === "rich_text_list") {
+            // リストの処理
+            const listTag = "ul";
+            const cssClass = element.style === "bullet" ? "custom-ordered-list" : "custom-unordered-list";
+            formattedText += `<${listTag} class="${cssClass}">`;
+
+            element.elements.forEach(listItem => {
+              if (listItem.type === "rich_text_list") {
+                // ネストされたリストを再帰的に処理
+                processElements(listItem.elements);
+              } else {
+                // 直下の要素にのみ <li> を付ける
+                formattedText += `<li>`;
+                if (listItem.elements) {
+                  processElements(listItem.elements);
+                } else {
+                  formattedText += applyStyles(listItem.text || "", listItem.style);
+                }
+                formattedText += `</li>`;
+              }
+            });
+
+            formattedText += `</ul>`;
+            return;
+          }
+
 
           if (!element.elements) {
             if (element.type === "emoji") {
@@ -449,26 +466,46 @@ export default {
             } else if (element.type === "text") {
               styledText = applyStyles(styledText, element.style);
             }
-
-            if (isOrderedList) {
-              formattedText += `${listIndex}. ${styledText}\n`;
-              listIndex++;
-            } else if (isList) {
-              formattedText += `* ${styledText}\n`;
-            } else {
-              formattedText += styledText;
-            }
+            formattedText += styledText;
           } else {
-            processElements(element.elements, element.type === "rich_text_list", element.style?.ordered, listIndex);
+            processElements(element.elements, element.type === "rich_text_list", element.style?.ordered);
           }
-  });
-};
+        });
+      };
+      const applyStyles = (text, style) => {
+        if (style?.code) text = '<code class="inline-code">' + text + '</code>';
+        if (style?.bold) text = '<strong>' + text + '</strong>';
+        if (style?.italic) text = '<p class="custom-italic">' + text + '</p>';
+        if (style?.strike) text = '~~' + text + '~~';
+        return text;
+      };
 
-      // 各ブロックをループ
       blocks?.forEach(block => {
-        processElements(block.elements);
+        if (block.type === "rich_text_list") {
+          // リストの処理
+          const listTag = "ul";
+          const cssClass = block.style === "bullet" ? "custom-unordered-list" : "custom-ordered-list";
+          formattedText += `<${listTag} class="${cssClass}">`;
+
+          block.elements.forEach(listItem => {
+            // 直下の要素にのみ <li> を付ける
+            formattedText += `<li>`;
+            if (listItem.elements) {
+              processElements(listItem.elements);
+            } else {
+              formattedText += applyStyles(listItem.text || "", listItem.style);
+            }
+            formattedText += `</li>`;
+          });
+
+          formattedText += `</${listTag}>`;
+        } else {
+          // リスト以外の要素を処理
+          processElements(block.elements);
+        }
       });
-      if (content.text && content.text.includes('Qilin')) {
+      //デバッグ用
+      if (content.text && content.text.includes('インデックスを設定')) {
         console.log(formattedText);
       }
       return formattedText;
@@ -486,7 +523,7 @@ export default {
         return text
           .replace(/\*\*\*\*/g, '') // **** -> (空文字)
           //.replace(/~(.*?)~/g, '~~$1~~') // ~strike~ -> ~~strike~~
-          .replace(/`([^`]+)`/g, '`$1`') // `inline code`
+          //.replace(/`([^`]+)`/g, '`$1`') // `inline code`
           .replace(/```([^`]+)```/g, '```\n$1\n```') // ```code block```
           .replace(/\n\n/g, '<br><br>') // まずは \n\n を <br><br> に置換
           .replace(/\n/g, '<br>') // 改行文字を <br> に置換
@@ -510,18 +547,18 @@ export default {
       renderer.em = (em) => {
         return `<p class="custom-italic">${em.text}</p>`;
       };
-      renderer.list = (body) => {
-        const type = body.ordered ? 'ol' : 'ul';
-        const className = body.ordered ? 'custom-ordered-list' : 'custom-unordered-list';
-        const startatt = (body.ordered && body.start !== 1) ? (' start="' + body.start + '"') : '';
-        // body.itemsを<li>タグで連結
-        const items = body.items.map(item => '<li>' + item.text + '</li>').join('\n');
+      // renderer.list = (body) => {
+      //   const type = body.ordered ? 'ol' : 'ul';
+      //   const className = body.ordered ? 'custom-ordered-list' : 'custom-unordered-list';
+      //   const startatt = (body.ordered && body.start !== 1) ? (' start="' + body.start + '"') : '';
+      //   // body.itemsを<li>タグで連結
+      //   const items = body.items.map(item => '<li>' + item.text + '</li>').join('\n');
 
-        return '<' + type + ' class="' + className + '"' + startatt + '>\n' + items + '\n</' + type + '>\n';
-      };
-      renderer.listitem = (text) => {
-        return '<li>' + text.text + '</li>\n';
-      };
+      //   return '<' + type + ' class="' + className + '"' + startatt + '>\n' + items + '\n</' + type + '>\n';
+      // };
+      // renderer.listitem = (text) => {
+      //   return '<li>' + text.text + '</li>\n';
+      // };
       // paragraphメソッドをオーバーライドして<p>タグを挿入しない
       renderer.paragraph = (text) => {
         return marked.parseInline(text.text) + '\n';
@@ -1175,7 +1212,7 @@ export default {
 ::v-deep .custom-ordered-list {
   margin: 0 0 1em 2em;
   padding: 0;
-  list-style-type: decimal;
+  /*  list-style-type: decimal; */
 }
 
 ::v-deep .custom-italic {
@@ -1828,16 +1865,20 @@ export default {
 }
 
 ::v-deep pre {
-    border: 1px solid var(--background-card-border);
-    font-variant-ligatures: none;
-    white-space: pre-wrap; /* 改行を保持しつつ折り返し */
-  word-wrap: break-word; /* 長い単語を折り返す */
-  word-break: break-word; /* 単語の途中で改行 */
-  overflow-x: auto; /* 横スクロールを有効にする */
-    tab-size: 4;
-    border-radius: 4px;
-    margin-bottom: 16px;
-    padding: 8px;
-    font-family: Monaco, Menlo, Consolas, Courier New, monospace !important;
+  border: 1px solid var(--background-card-border);
+  font-variant-ligatures: none;
+  white-space: pre-wrap;
+  /* 改行を保持しつつ折り返し */
+  word-wrap: break-word;
+  /* 長い単語を折り返す */
+  word-break: break-word;
+  /* 単語の途中で改行 */
+  overflow-x: auto;
+  /* 横スクロールを有効にする */
+  tab-size: 4;
+  border-radius: 4px;
+  margin-bottom: 16px;
+  padding: 8px;
+  font-family: Monaco, Menlo, Consolas, Courier New, monospace !important;
 }
 </style>
