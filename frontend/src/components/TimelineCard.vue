@@ -404,12 +404,15 @@ export default {
         return content.text;
       }
       let formattedText = '';
-
+      //デバッグ用
+      if (content.text && content.text.includes('2025/05/08')) {
+        console.log(formattedText);
+      }
       // 再帰的にelementsを処理する関数
       const processElements = (elements) => {
 
         elements.forEach(element => {
-          let styledText = element.text || "";
+          let styledText = applyStyles(element.text, element.style) || "";
 
           if (element.type === "rich_text_preformatted") {
             // 再帰的に内部の elements を処理
@@ -431,8 +434,8 @@ export default {
 
           if (element.type === "rich_text_list") {
             // リストの処理
-            const listTag = "ul";
-            const cssClass = element.style === "bullet" ? "custom-ordered-list" : "custom-unordered-list";
+            const listTag = element.style === "bullet" ? "ul" : "ol";
+            const cssClass = element.style === "bullet" ? "custom-unordered-list" : "custom-ordered-list";
             formattedText += `<${listTag} class="${cssClass}">`;
 
             element.elements.forEach(listItem => {
@@ -450,11 +453,9 @@ export default {
                 formattedText += `</li>`;
               }
             });
-
             formattedText += `</ul>`;
             return;
           }
-
 
           if (!element.elements) {
             if (element.type === "emoji") {
@@ -464,7 +465,7 @@ export default {
             } else if (element.type === "user") {
               styledText = '@' + element.user_name + ' ';
             } else if (element.type === "text") {
-              styledText = applyStyles(styledText, element.style);
+              styledText = applyStyles(element.text, element.style);
             }
             formattedText += styledText;
           } else {
@@ -473,41 +474,26 @@ export default {
         });
       };
       const applyStyles = (text, style) => {
+        if (text) text = escapeHtml(text);
         if (style?.code) text = '<code class="inline-code">' + text + '</code>';
         if (style?.bold) text = '<strong>' + text + '</strong>';
         if (style?.italic) text = '<p class="custom-italic">' + text + '</p>';
-        if (style?.strike) text = '~~' + text + '~~';
+        if (style?.strike) text = '<s>' + text + '</s>';
         return text;
+      };
+      const escapeHtml = (unsafe) => {
+        return unsafe
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
       };
 
       blocks?.forEach(block => {
-        if (block.type === "rich_text_list") {
-          // リストの処理
-          const listTag = "ul";
-          const cssClass = block.style === "bullet" ? "custom-unordered-list" : "custom-ordered-list";
-          formattedText += `<${listTag} class="${cssClass}">`;
-
-          block.elements.forEach(listItem => {
-            // 直下の要素にのみ <li> を付ける
-            formattedText += `<li>`;
-            if (listItem.elements) {
-              processElements(listItem.elements);
-            } else {
-              formattedText += applyStyles(listItem.text || "", listItem.style);
-            }
-            formattedText += `</li>`;
-          });
-
-          formattedText += `</${listTag}>`;
-        } else {
-          // リスト以外の要素を処理
-          processElements(block.elements);
-        }
+        processElements(block.elements);
       });
-      //デバッグ用
-      if (content.text && content.text.includes('インデックスを設定')) {
-        console.log(formattedText);
-      }
+      
       return formattedText;
     },
     compiledMarkdown(content) {
@@ -521,10 +507,10 @@ export default {
       // Slackのmrkdwn形式をMarkdownに変換
       const slackToMarkdown = (text) => {
         return text
-          .replace(/\*\*\*\*/g, '') // **** -> (空文字)
+          //.replace(/\*\*\*\*/g, '') // **** -> (空文字)
           //.replace(/~(.*?)~/g, '~~$1~~') // ~strike~ -> ~~strike~~
           //.replace(/`([^`]+)`/g, '`$1`') // `inline code`
-          .replace(/```([^`]+)```/g, '```\n$1\n```') // ```code block```
+          //.replace(/```([^`]+)```/g, '```\n$1\n```') // ```code block```
           .replace(/\n\n/g, '<br><br>') // まずは \n\n を <br><br> に置換
           .replace(/\n/g, '<br>') // 改行文字を <br> に置換
           ;
@@ -538,40 +524,12 @@ export default {
         const languageClass = lang ? `hljs ${lang}` : 'hljs';
         return `<pre class="pres"><code class="hljs2 ${languageClass}">${highlighted}</code></pre>`;
       };
-      renderer.codespan = (code) => {
-        return `<code class="inline-code">${code.text}</code>`;
-      };
-      renderer.blockquote = (code) => {
-        return `<blockquote class="blockquote-line">${code.text}</blockquote>`;
-      };
-      renderer.em = (em) => {
-        return `<p class="custom-italic">${em.text}</p>`;
-      };
-      // renderer.list = (body) => {
-      //   const type = body.ordered ? 'ol' : 'ul';
-      //   const className = body.ordered ? 'custom-ordered-list' : 'custom-unordered-list';
-      //   const startatt = (body.ordered && body.start !== 1) ? (' start="' + body.start + '"') : '';
-      //   // body.itemsを<li>タグで連結
-      //   const items = body.items.map(item => '<li>' + item.text + '</li>').join('\n');
-
-      //   return '<' + type + ' class="' + className + '"' + startatt + '>\n' + items + '\n</' + type + '>\n';
-      // };
-      // renderer.listitem = (text) => {
-      //   return '<li>' + text.text + '</li>\n';
-      // };
-      // paragraphメソッドをオーバーライドして<p>タグを挿入しない
-      renderer.paragraph = (text) => {
-        return marked.parseInline(text.text) + '\n';
-      };
-      renderer.link = (link) => {
-        return link.href;
-      };
 
       marked.setOptions({
         breaks: true,
         renderer: renderer
       });
-      markdownText = marked(markdownText, { renderer });
+      // markdownText = marked(markdownText, { renderer });
       // 既存のHTMLタグを壊さないようにするために、HTMLタグを元に戻す
 
       const unescapeHtml = (safe) => {
@@ -926,7 +884,7 @@ export default {
       if (galleryHeight && this.post?.files?.length) {
         console.log(this.post.files.length + " galleryHeight:" + galleryHeight);
       }
-      this.showExpandButton = galleryHeight >= this.maxHeight;
+      this.showExpandButton = this.post.files.length > 4 || galleryHeight >= this.maxHeight;
     },
     async fetchReplies() {
       try {
@@ -1384,7 +1342,7 @@ export default {
   /* 子要素を中央揃え */
   align-items: center;
   /* テキストが改行されるようにする */
-  white-space: normal;
+  white-space: pre-wrap;
   /* テキストがはみ出した場合に省略記号を表示 */
   text-overflow: ellipsis;
   /* 単語の途中で改行されるようにする */
