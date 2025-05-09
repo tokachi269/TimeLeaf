@@ -405,14 +405,14 @@ export default {
       }
       let formattedText = '';
       //デバッグ用
-      if (content.text && content.text.includes('2025/05/08')) {
-        console.log(formattedText);
-      }
+      // if (content.text && content.text.includes('Excel関連')) {
+      //   console.log(formattedText);
+      // }
       // 再帰的にelementsを処理する関数
       const processElements = (elements) => {
 
         elements.forEach(element => {
-          let styledText = applyStyles(element.text, element.style) || "";
+          let styledText = '';
 
           if (element.type === "rich_text_preformatted") {
             // 再帰的に内部の elements を処理
@@ -465,11 +465,11 @@ export default {
             } else if (element.type === "user") {
               styledText = '@' + element.user_name + ' ';
             } else if (element.type === "text") {
-              styledText = applyStyles(element.text, element.style);
+              styledText = applyStyles(element.text || "", element.style);
             }
             formattedText += styledText;
           } else {
-            processElements(element.elements, element.type === "rich_text_list", element.style?.ordered);
+            processElements(element.elements);
           }
         });
       };
@@ -532,15 +532,15 @@ export default {
       // markdownText = marked(markdownText, { renderer });
       // 既存のHTMLタグを壊さないようにするために、HTMLタグを元に戻す
 
-      const unescapeHtml = (safe) => {
-        return safe
-          .replace(/&lt;/g, '<')
-          .replace(/&gt;/g, '>')
-          .replace(/&amp;/g, '&')
-          .replace(/&quot;/g, '"')
-          .replace(/&#039;/g, "'");
-      };
-      markdownText = unescapeHtml(markdownText);
+      // const unescapeHtml = (safe) => {
+      //   return safe
+      //     .replace(/&lt;/g, '<')
+      //     .replace(/&gt;/g, '>')
+      //     .replace(/&amp;/g, '&')
+      //     .replace(/&quot;/g, '"')
+      //     .replace(/&#039;/g, "'");
+      // };
+     // markdownText = unescapeHtml(markdownText);
       return markdownText;
     },
 
