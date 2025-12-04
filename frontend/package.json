@@ -15,6 +15,7 @@
     "mitt": "^3.0.1",
     "twemoji": "^14.0.2",
     "vue": "^3.2.13",
+    "vue-easy-lightbox": "^1.11.1",
     "vue-router": "^4.4.5"
   },
   "devDependencies": {
