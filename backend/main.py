@@ -1,10 +1,17 @@
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, send_from_directory
 from flask_cors import CORS
 from controller.controller import controller_bp
+import os
 
 app = Flask(__name__, static_folder='../frontend/dist/static', template_folder='../frontend/dist')
 CORS(app, resources={r"/*": {"origins": ["https://192.168.1.2:8081", "https://www.timeleaff.com"], "allow_headers": ["Authorization", "Content-Type"]}})
 app.register_blueprint(controller_bp)
+
+@app.route('/favicon.ico')
+def favicon():
+    # ビルド済みのフロント資産からfaviconを配信する
+    dist_dir = os.path.join(app.root_path, '../frontend/dist')
+    return send_from_directory(dist_dir, 'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')

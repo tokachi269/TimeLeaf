@@ -58,6 +58,7 @@ export default {
       isNewVersion: false,
       changelog: [],
       currentVersion: versionData.version,
+      versionChecked: false,
       // スクロール状態
       isScrolled: false,
       logoWidth: 350,  // ロゴの現在の幅
@@ -97,9 +98,6 @@ export default {
       this.isDarkMode = savedTheme === 'true';
     }
     this.applyTheme();
-    
-    // バージョンチェック
-    this.checkVersion();
     
     // スクロールイベントリスナーを追加
     window.addEventListener('scroll', this.handleScroll);
@@ -163,6 +161,10 @@ export default {
                 document.cookie = `name=${data.name}; expires=${new Date().setMonth(new Date().getMonth() + 1)}; path=/; SameSite=None; Secure`;
               }
               this.invalidToken = false;
+              if (!this.versionChecked) {
+                this.checkVersion();
+                this.versionChecked = true;
+              }
               this.removeUrlParams(); // パスパラメーターを削除
             }
             return
