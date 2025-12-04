@@ -107,11 +107,15 @@ def oauth_redirect():
     }
     referer = request.headers.get('referer')
 
+    # refererからベースURLを取得、なければデフォルト値を使用
     if referer:
         parsed_referer = urlparse(referer)
         scheme = parsed_referer.scheme
         domain = parsed_referer.netloc
         full_url = f"{scheme}://{domain}"
+    else:
+        # デフォルトのリダイレクトURIを設定
+        full_url = request.host_url.rstrip('/')
 
     params={
         "client_id": SLACK_CLIENT_ID,
@@ -313,7 +317,7 @@ def get_slack_times_channels():
             timesChannels = [
                 channel
                 for channel in res.get("channels", [])
-                if isinstance(channel, dict) and channel.get("name", "").startswith('times')
+                if isinstance(channel, dict) and channel.get("name", "").startswith(('times-', 'times_'))
             ]
             timesFollowed = [
                 channel
@@ -491,18 +495,28 @@ def get_image():
         "Authorization": f"{token}",
     }
 
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        content_type = response.headers.get('Content-Type', '')
-        if(content_type != type) :
-            return jsonify({"error": "Failed to fetch image. return " + content_type}), 500
-        flask_response = Response(response.content)
-        flask_response.headers['Content-Type'] = type
-        flask_response.headers['Content-Length'] = str(len(response.content))
-        flask_response.headers['Cache-Control'] = 'public, max-age=3600'  # 60 分間キャッシュ
+    try:
+        # SSL/TLSエラーに対してリトライ処理を追加
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            content_type = response.headers.get('Content-Type', '')
+            if(content_type != type) :
+                return jsonify({"error": "Failed to fetch image. return " + content_type}), 500
+            flask_response = Response(response.content)
+            flask_response.headers['Content-Type'] = type
+            flask_response.headers['Content-Length'] = str(len(response.content))
+            flask_response.headers['Cache-Control'] = 'public, max-age=3600'  # 60 分間キャッシュ
 
-        return flask_response
-    else:
+            return flask_response
+        else:
+            return jsonify({"error": "Failed to fetch image"}), 500
+    except requests.exceptions.SSLError as e:
+        # SSLエラーの場合はログ出力して503を返す
+        print(f"SSL Error fetching image from {url}: {str(e)}")
+        return jsonify({"error": "SSL connection error"}), 503
+    except requests.exceptions.RequestException as e:
+        # その他のリクエストエラー
+        print(f"Request error fetching image from {url}: {str(e)}")
         return jsonify({"error": "Failed to fetch image"}), 500
 
 @app.route("/v1/slack/events", methods=["POST"])

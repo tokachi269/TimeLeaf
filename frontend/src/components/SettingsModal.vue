@@ -20,6 +20,13 @@
           </label>
           <span>小さいスイッチ</span>
         </div> -->
+        
+        <!-- 更新履歴ボタン -->
+        <div class="changelog-button-container">
+          <button class="changelog-button" @click="openChangelog">
+            📝 更新履歴を見る
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -55,6 +62,9 @@ export default {
       console.log("toggleSetting：" + `toggle-${settingName}`);
       localStorage.setItem(settingName, value);
       this.$emit(`toggle-${settingName}`, value);
+    },
+    openChangelog() {
+      this.$emit('open-changelog');
     }
   },
   mounted() {
@@ -158,5 +168,31 @@ input:checked+.slider {
 
 input:checked+.slider:before {
   transform: translateX(calc(var(--switch-width, 60px) - var(--switch-height, calc(var(--switch-width, 60px) * 0.56))));
+}
+
+/* 更新履歴ボタン */
+.changelog-button-container {
+  margin-top: var(--spacing-xl);
+  display: flex;
+  justify-content: center;
+}
+
+.changelog-button {
+  background-color: var(--button-notactive-background-color);
+  color: var(--button-notactive-text-color);
+  border: none;
+  padding: var(--spacing-md) var(--spacing-2xl);
+  font-size: var(--font-size-md);
+  border-radius: var(--border-radius-md);
+  cursor: pointer;
+  transition: background-color var(--transition-slow);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.changelog-button:hover {
+  background-color: var(--button-notactive-hover-background-color);
 }
 </style>

@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "vue-easy-lightbox": "^1.19.0",
     "vue-router": "^4.4.5"
   }
 }

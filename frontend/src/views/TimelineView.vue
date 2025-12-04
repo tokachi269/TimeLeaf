@@ -334,7 +334,8 @@ export default {
     onScroll() {
       // ユーザーポップアップが表示されている場合は閉じる
       this.isScrolling = true;
-      if (this.showEmojiPicker) {
+      // デスクトップの場合のみスクロールで絵文字ピッカーを閉じる
+      if (this.showEmojiPicker && !this.isTouchDevice) {
         this.showEmojiPicker = false;
       }
       // スクロール位置を監視してボタンを表示

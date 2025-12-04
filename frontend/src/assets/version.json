@@ -1,0 +1,41 @@
+{
+  "version": "1.1.0",
+  "changelog": [
+    {
+      "version": "1.1.0",
+      "date": "2025-11-24",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "ロゴをクリックするとページをリロードできるようにしました。"
+        },
+        {
+          "type": "feature",
+          "description": "画像ビューアーを導入し、ズーム・回転・キーボード操作などに対応しました。"
+        },
+        {
+          "type": "improvement",
+          "description": "フォローしているチャンネルにはタイムラインカードにバッジが表示されるようになりました。"
+        },
+        {
+          "type": "improvement",
+          "description": "更新履歴が表示されるようになりました。"
+        },
+        {
+          "type": "bugfix",
+          "description": "リアクションが0件の投稿に初めてリアクションを追加する際に正常に動作しない問題を修正しました。"
+        }
+      ]
+    },
+    {
+      "version": "1.0.0",
+      "date": "2024-12-12",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "リリース"
+        }
+      ]
+    }
+  ]
+}

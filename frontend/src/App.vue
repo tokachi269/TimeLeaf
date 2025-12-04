@@ -1,6 +1,7 @@
 <template>
   <div id="app">
-    <img alt="Vue logo" src="./assets/logo.png" class="logo" />
+    <div class="header-blur-bar"></div>
+    <img alt="Vue logo" src="./assets/logo.png" :class="['logo', { 'scrolled': isScrolled }]" :style="{ width: logoWidth + 'px', top: logoTop + 'px' }" @click="reloadPage" />
     <div class="header-container">
       <Header v-if="team != ''" :msg="headerMessage" />
       <!-- 設定モーダルを呼び出すボタン -->
@@ -8,7 +9,11 @@
     </div>
     <!-- 設定モーダル -->
     <SettingsModal :show="showSettingsModal" @close="closeSettingsModal" @toggle-darkMode="toggleSetting"
-      @toggle-smallSwitch="toggleSetting" />
+      @toggle-smallSwitch="toggleSetting" @open-changelog="openChangelogModal" />
+    
+    <!-- 更新履歴モーダル -->
+    <ChangelogModal :is-visible="showChangelogModal" :is-new-version="isNewVersion" :changelog="changelog"
+      @close="closeChangelogModal" />
 
     <TimelineView v-if="!invalidToken" :accessToken="accessToken" :accessedId="id" :accessedName="name" />
     <br>
@@ -22,16 +27,20 @@
 import Header from './components/Header.vue'
 import TimelineView from './views/TimelineView.vue'
 import SettingsModal from './components/SettingsModal.vue'
+import ChangelogModal from './components/ChangelogModal.vue'
 import { API_BASE_URL, API_REDIRECT_URL,SLACK_CLIENT_ID } from '@/config.js';
 import { useRouter, useRoute } from 'vue-router';
 import { ref, onMounted, watch } from 'vue';
+import { saveVersionToCookie, saveUserIdToCookie, getUserIdFromCookie, isVersionUpdated } from '@/utils/cookieUtils.js';
+import versionData from '@/assets/version.json';
 
 export default {
   name: 'App',
   components: {
     Header,
     TimelineView,
-    SettingsModal
+    SettingsModal,
+    ChangelogModal
   },
   data() {
     return {
@@ -44,6 +53,17 @@ export default {
       scope: "",
       showSettingsModal: false,
       isDarkMode: false,
+      // バージョン管理関連
+      showChangelogModal: false,
+      isNewVersion: false,
+      changelog: [],
+      currentVersion: versionData.version,
+      // スクロール状態
+      isScrolled: false,
+      logoWidth: 350,  // ロゴの現在の幅
+      maxLogoWidth: 350,  // ロゴの最大幅
+      minLogoWidth: 100,  // ロゴの最小幅
+      logoTop: 10  // ロゴの上からの位置
     }
   },
   setup(props, { emit }) {
@@ -77,6 +97,16 @@ export default {
       this.isDarkMode = savedTheme === 'true';
     }
     this.applyTheme();
+    
+    // バージョンチェック
+    this.checkVersion();
+    
+    // スクロールイベントリスナーを追加
+    window.addEventListener('scroll', this.handleScroll);
+  },
+  beforeUnmount() {
+    // スクロールイベントリスナーを削除
+    window.removeEventListener('scroll', this.handleScroll);
   },
   computed: {
     headerMessage() {
@@ -215,6 +245,76 @@ export default {
       } else {
         document.body.classList.remove('dark-mode');
       }
+    },
+    /**
+     * バージョンをチェックし、新バージョンなら更新履歴を表示
+     */
+    checkVersion() {
+      // バージョン情報を読み込む
+      this.changelog = versionData.changelog;
+      
+      // ユーザーIDをCookieに保存（初回アクセスの判定用）
+      let userId = getUserIdFromCookie();
+      if (!userId) {
+        // 初回アクセス時はランダムなユーザーIDを生成
+        userId = 'user_' + Math.random().toString(36).substr(2, 9);
+        saveUserIdToCookie(userId);
+      }
+      
+      // バージョンが更新されているかチェック
+      if (isVersionUpdated(this.currentVersion)) {
+        // 新バージョンの場合、更新履歴モーダルを表示
+        this.isNewVersion = true;
+        this.showChangelogModal = true;
+        
+        // バージョン情報をCookieに保存
+        saveVersionToCookie(this.currentVersion);
+      }
+    },
+    /**
+     * 更新履歴モーダルを開く（設定画面から呼び出される）
+     */
+    openChangelogModal() {
+      this.isNewVersion = false; // 設定から開いた場合は新バージョン表示ではない
+      this.showChangelogModal = true;
+    },
+    /**
+     * 更新履歴モーダルを閉じる
+     */
+    closeChangelogModal() {
+      this.showChangelogModal = false;
+      this.isNewVersion = false;
+    },
+    /**
+     * スクロールイベントハンドラー
+     */
+    handleScroll() {
+      const scrollY = window.scrollY;
+      
+      // スクロール量に応じてロゴのサイズを計算
+      // 1pxスクロールごとにロゴを1px縮小
+      const newWidth = this.maxLogoWidth - scrollY;
+      
+      // 最小幅と最大幅の範囲内に収める
+      if (newWidth >= this.minLogoWidth && newWidth <= this.maxLogoWidth) {
+        this.logoWidth = newWidth;
+        this.logoTop = 10;
+      } else if (newWidth < this.minLogoWidth) {
+        this.logoWidth = this.minLogoWidth;
+        this.logoTop = 10; // 最小サイズ時も画面上部に固定
+      } else {
+        this.logoWidth = this.maxLogoWidth;
+        this.logoTop = 10;
+      }
+      
+      // 最小サイズに到達したら固定表示フラグを立てる
+      this.isScrolled = this.logoWidth <= this.minLogoWidth;
+    },
+    /**
+     * ページをリロードする
+     */
+    reloadPage() {
+      window.location.reload();
     }
   }
 }
@@ -222,6 +322,7 @@ export default {
 
 <style>
 :root {
+  /* カラー */
   --background-body: #f9f9f9;
   --background-card-body: #ffffff;
   --background-card-border: #ddd;
@@ -235,6 +336,56 @@ export default {
   --button-notactive-background-color: #ededed;
   --button-notactive-text-color: #1c1c1c;
   --button-notactive-hover-background-color: #e1e1e1;
+  --hover-color: rgba(0, 0, 0, 0.05);
+  --border-color: #ddd;
+  --secondary-text-color: #6e6e6e;
+  
+  /* スペーシング */
+  --spacing-xxs: 2px;
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 20px;
+  --spacing-2xl: 24px;
+  --spacing-3xl: 32px;
+  
+  /* ボーダー */
+  --border-radius-sm: 6px;
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
+  --border-width: 1px;
+  --border-width-md: 2px;
+  
+  /* シャドウ */
+  --shadow-none: none;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.15);
+  --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.2);
+  
+  /* z-index */
+  --z-base: 1;
+  --z-header: 100;
+  --z-modal: 1000;
+  --z-modal-overlay: 10000;
+  
+  /* フォント */
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-md: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  
+  /* トランジション */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.2s ease;
+  --transition-slow: 0.3s ease;
 }
 
 body.dark-mode {
@@ -248,9 +399,12 @@ body.dark-mode {
   --modal-background-color: #2c2c2c;
   --button-active-background-color: rgb(125 169 88);
   --button-active-text-color: white;
-  --button-notactive-background-color: #272727 ;
-  --button-notactive-hover-background-color: #242424 ;
+  --button-notactive-background-color: #272727;
+  --button-notactive-hover-background-color: #242424;
   --button-notactive-text-color: rgb(232, 232, 232);
+  --hover-color: rgba(255, 255, 255, 0.05);
+  --border-color: #686868;
+  --secondary-text-color: #7f7f7f;
 }
 
 body {
@@ -270,21 +424,43 @@ body.dark-mode img.invert-on-dark-mode {
   -moz-osx-font-smoothing: grayscale;
   text-align: center;
   color: var(--text-base-color);
-  margin-top: 10px;
+  padding-top: 50px;
   background-color: var(--background-body);
 }
 
-.logo {
-  width: 350px;
-  height: auto;
+/* ヘッダーのぼかしバー */
+.header-blur-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 80px;
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, black 60%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 0%, black 60%, transparent 100%);
+  backdrop-filter: blur(4px) saturate(180%);
+  -webkit-backdrop-filter: blur(4px) saturate(180%);
+  z-index: var(--z-header);
+  pointer-events: none;
 }
+
+.logo {
+  height: auto;
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  cursor: pointer;
+  transition: none;
+  z-index: calc(var(--z-header) + 1);
+}
+
 img.logo {
-  transition: filter 0.3s ease;
+  transition: filter var(--transition-slow);
 }
 
 body.dark-mode img.logo {
-  filter: brightness(0.9) saturate(1.1) 
+  filter: brightness(0.9) saturate(1.1);
 }
+
 .header-container {
   display: flex;
   justify-content: center;
@@ -315,6 +491,7 @@ body.dark-mode img.logo {
   width: 20px;
   height: 20px;
 }
+
 html {
   overflow-y: scroll;
 }

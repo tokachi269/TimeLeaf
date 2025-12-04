@@ -1,49 +1,59 @@
 <template>
   <div class="timeline-card">
     <div v-if="canDisplayPost" class="card">
-      <a :href="localPost.channelUrl" class="channel-name" target="_blank" rel="noopener noreferrer"> {{
-        localPost.channelName }} </a>
-      <div class="header">
-        <img :src="userImage" alt="User Image" class="user-image" />
-        <div class="user-info">
-          <span class="username">{{ userName }}</span>
-          <span class="username-en">{{ userNameEn }}</span>
-        </div>
+      <div class="channel-header">
+        <span v-if="localPost.isFollowed" class="follow-badge">  </span>
+        <a :href="localPost.channelUrl" class="channel-name" target="_blank" rel="noopener noreferrer"> {{
+          localPost.channelName }} </a>
+        <span v-if="localPost.isFollowed" class="follow-badge">✓</span>
       </div>
-      <div class="content-wrapper">
-        <div class="empty-space"></div>
-        <div class="content-area">
+      <div class="post-container">
+        <img :src="userImage" alt="User Image" class="user-image" />
+        <div class="post-content">
+          <div class="user-info">
+            <span class="username">{{ userName }}</span>
+            <span class="username-en">{{ userNameEn }}</span>
+          </div>
 
           <div class="content" v-html="compiledMarkdown(localPost.content)"></div>
 
           <!-- URLのサムネイル -->
           <div v-if="extractThumbnail(localPost)" class="url-preview-container" v-html="extractThumbnail(localPost)">
           </div>
+        </div>
+      </div>
 
-          <!-- 画像一覧 -->
-          <div v-if="this.imgsAndVids.length != 0">
-            <div ref="imageGallery" class="image-gallery" :class="[setGalleryClass, { 'expanded': isExpanded }]">
-              <div v-for="(file, index) in visibleImages" :key="index" class="image-item">
-                <template v-if="file.media_display_type !== 'video'">
-                  <img :src="file.url" :alt="file.name" class="image" @click="openModal(file)"
-                    crossorigin="anonymous" />
-                </template>
-                <template v-else>
-                  <video controls ref="video" class="media image-item" crossorigin="anonymous">
-                    <source :src="file.url" :alt="file.name" :type="file.mimeType" :poster="file.url">
-                    Your browser does not support the video tag.
-                  </video>
-                </template>
-              </div>
-              <div v-if="isModalOpen" class="modal" @click="closeModal">
-                <img ref="modalImage" :src="modalImageUrl" alt="High Quality Image" class="modal-image"
-                  crossorigin="anonymous" />
-              </div>
-            </div>
-            <button v-if="shouldShowExpandButton" class="expand-button" @click="toggleExpanded">
-              <span class="expand-button-context">もっと見る</span>
-            </button>
+      <!-- 画像一覧 -->
+      <div v-if="this.imgsAndVids.length != 0" class="media-container">
+        <div ref="imageGallery" class="image-gallery" :class="[setGalleryClass, { 'expanded': isExpanded }]">
+          <div v-for="(file, index) in visibleImages" :key="index" class="image-item">
+            <template v-if="file.media_display_type !== 'video'">
+              <img :src="file.url" :alt="file.name" class="image" @click="openLightbox(index)" @load="checkHeight"
+                crossorigin="anonymous" />
+            </template>
+            <template v-else>
+              <video controls ref="video" class="media image-item" crossorigin="anonymous">
+                <source :src="file.url" :alt="file.name" :type="file.mimeType" :poster="file.url">
+                Your browser does not support the video tag.
+              </video>
+            </template>
           </div>
+        </div>
+        
+        <vue-easy-lightbox
+          :visible="lightboxVisible"
+          :imgs="lightboxImages"
+          :index="lightboxIndex"
+          @hide="closeLightbox"
+        ></vue-easy-lightbox>
+        <button v-if="shouldShowExpandButton" class="expand-button" @click="toggleExpanded">
+          <span class="expand-button-context">もっと見る</span>
+        </button>
+      </div>
+
+      <div class="post-container">
+        <div class="empty-space"></div>
+        <div class="post-content">
 
           <!-- リアクション一覧 -->
           <div v-if="reactions.length != 0" class="reaction-list">
@@ -52,7 +62,8 @@
               @mouseenter="showUserList(reaction, reaction.name, $event)" @mouseleave="hideUserList"
               @click="insertOrDeleteReaction(reaction.name, localPost.ts, localPost.ts, true)"
               @mousedown="handleReactionMouseDown(reaction, reaction.name, $event)" @mouseup="handleReactionMouseUp"
-              @touchstart="handleReactionMouseDown(reaction, reaction.name, $event)" @touchend="handleReactionMouseUp">
+              @touchstart="handleReactionMouseDown(reaction, reaction.name, $event)" @touchend="handleReactionMouseUp"
+              @touchmove="handleReactionTouchMove">
               <span v-html="getEmojiForReaction(reaction.name)"></span>
               <span class="reaction-count">{{ reaction.count }}</span>
             </div>
@@ -111,7 +122,7 @@
                           <div v-for="(file, index) in reply.files.slice(0, 4)" :key="index" class="image-item">
                             <template v-if="file.media_display_type !== 'video'">
                               <img :src="file.url" :alt="file.name" class="image" @click="openModal(file)"
-                                crossorigin="anonymous" />
+                                @load="checkHeight" crossorigin="anonymous" />
                             </template>
                             <template v-else>
                               <video controls ref="video" class="media image-item" crossorigin="anonymous">
@@ -166,7 +177,7 @@
 
           </div>
           <div class="detail-list">
-            <div v-if="reactions.length == 0" @click="openEmojiPicker($event)" class="add-reaction-image">
+            <div v-if="reactions.length == 0" @click="openEmojiPicker(this.localPost.ts, $event)" class="add-reaction-image">
               <img src="./../assets/emoji-add.png" alt="Add Reaction" class="emoji-image invert-on-dark-mode">
             </div>
             <div @click="showReplyBox = true" class="add-reaction-image">
@@ -198,8 +209,12 @@ import emitter from '@/eventBus';
 import { marked } from 'marked';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/default.css';
+import VueEasyLightbox from 'vue-easy-lightbox';
 
 export default {
+  components: {
+    VueEasyLightbox
+  },
   props: {
     post: {
       type: Object,
@@ -227,6 +242,9 @@ export default {
       userImage: "",
       isModalOpen: false,
       modalImageUrl: "",
+      lightboxVisible: false,
+      lightboxIndex: 0,
+      lightboxImages: [],
       isExpanded: false,
       showExpandButton: false,
       maxHeight: 500, // imageGalleryの初期最大高
@@ -283,7 +301,13 @@ export default {
     window.addEventListener('wheel', this.handleWheel, { passive: false });
     window.addEventListener('touchstart', this.handleTouchStart, { passive: false });
     window.addEventListener('touchmove', this.handleTouchMove, { passive: false });
-
+    // 画像の読み込み完了を監視
+    const images = this.$refs.imageGallery?.querySelectorAll('img');
+    if (images) {
+      images.forEach(img => {
+        img.addEventListener('load', this.checkHeight);
+      });
+    }
     // タップイベントリスナー (スマホ)
     if (this.isTouchDevice) {
       window.addEventListener("touchstart", this.onTap);
@@ -493,7 +517,7 @@ export default {
       blocks?.forEach(block => {
         processElements(block.elements);
       });
-      
+
       return formattedText;
     },
     compiledMarkdown(content) {
@@ -540,7 +564,7 @@ export default {
       //     .replace(/&quot;/g, '"')
       //     .replace(/&#039;/g, "'");
       // };
-     // markdownText = unescapeHtml(markdownText);
+      // markdownText = unescapeHtml(markdownText);
       return markdownText;
     },
 
@@ -631,6 +655,11 @@ export default {
     handleReactionMouseUp() {
       // マウスボタンが離されたときにタイマーをクリア
       clearTimeout(this.reactionTimeout);
+    },
+    handleReactionTouchMove() {
+      // タッチ移動（スクロール）時にタイマーとユーザーリストをキャンセル
+      clearTimeout(this.reactionTimeout);
+      this.isUserListVisible = false;
     },
     async fetchUserProfile() {
       try {
@@ -809,6 +838,17 @@ export default {
     collapseGallery() {
       this.isExpanded = false;
     },
+    openLightbox(index) {
+      // 画像のみのリストを作成
+      this.lightboxImages = this.visibleImages
+        .filter(file => file.media_display_type !== 'video')
+        .map(file => file.url);
+      this.lightboxIndex = index;
+      this.lightboxVisible = true;
+    },
+    closeLightbox() {
+      this.lightboxVisible = false;
+    },
     async openModal(file) {
       await this.fetchImageSrc(file, false);
       this.isModalOpen = true;
@@ -883,8 +923,8 @@ export default {
       const galleryHeight = this.$refs.imageGallery?.offsetHeight;
       if (galleryHeight && this.post?.files?.length) {
         console.log(this.post.files.length + " galleryHeight:" + galleryHeight);
+        this.showExpandButton = this.post.files.length > 4 || galleryHeight >= this.maxHeight;
       }
-      this.showExpandButton = this.post.files.length > 4 || galleryHeight >= this.maxHeight;
     },
     async fetchReplies() {
       try {
@@ -1270,18 +1310,39 @@ export default {
   }
 }
 
+.channel-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
 .channel-name {
   font-weight: bold;
-  margin-bottom: 8px;
   /* テキストの色を継承 */
   color: inherit;
   text-decoration: none;
   text-align: center;
 }
 
-.header {
-  height: 16px;
+.follow-badge {
+  font-size: 0.85em;
+  color: var(--primary-color);
+  font-weight: bold;
+  width: 16px;
+  flex-shrink: 0;
+}
+
+.follow-badge-placeholder {
+  width: 16px;
+  flex-shrink: 0;
+}
+
+/* 投稿全体のコンテナ：アイコン列と内容列 */
+.post-container {
   display: flex;
+  gap: 10px;
   align-items: flex-start;
 }
 
@@ -1289,51 +1350,54 @@ export default {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  margin-right: 10px;
+  flex-shrink: 0;
+}
+
+.empty-space {
+  width: 40px;
+  flex-shrink: 0;
+}
+
+/* 投稿の内容エリア：ユーザー名と本文 */
+.post-content {
+  flex-grow: 1;
   display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* 画像コンテナ：カード中央に配置 */
+.media-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 10px 0;
 }
 
 .user-info {
-  flex-grow: 1;
   display: flex;
+  flex-wrap: wrap;
   text-align: left;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .username {
   font-weight: bold;
   font-size: 0.9em;
   color: var(--text-base-color);
+  word-break: break-word;
+  line-height: 1.3;
 }
 
 .username-en {
   font-size: 0.9em;
   color: var(--text-secound-color);
-}
-
-.content-wrapper {
-  display: flex;
-  margin-top: 10px;
-  align-items: flex-start;
-}
-
-.empty-space {
-  width: 40px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  margin-right: 10px;
-}
-
-.content-area {
-  /* 残りのスペースを使用 */
-  flex-grow: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  margin-right: 20px;
-  height: auto;
-  font-size: 0.9em;
+  word-break: break-word;
+  line-height: 1.3;
 }
 
 .content {
