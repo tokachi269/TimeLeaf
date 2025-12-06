@@ -12,7 +12,7 @@
       @toggle-smallSwitch="toggleSetting" @open-changelog="openChangelogModal" />
     
     <!-- 更新履歴モーダル -->
-    <ChangelogModal :is-visible="showChangelogModal" :is-new-version="isNewVersion" :changelog="changelog"
+    <ChangelogModal :is-visible="showChangelogModal" :is-new-version="isNewVersion" :changelog="changelog" :expanded-versions="expandedVersions"
       @close="closeChangelogModal" />
 
     <TimelineView v-if="!invalidToken" :accessToken="accessToken" :accessedId="id" :accessedName="name" />
@@ -31,7 +31,7 @@ import ChangelogModal from './components/ChangelogModal.vue'
 import { API_BASE_URL, API_REDIRECT_URL,SLACK_CLIENT_ID } from '@/config.js';
 import { useRouter, useRoute } from 'vue-router';
 import { ref, onMounted, watch } from 'vue';
-import { saveVersionToCookie, saveUserIdToCookie, getUserIdFromCookie, isVersionUpdated } from '@/utils/cookieUtils.js';
+import { saveVersionToCookie, saveUserIdToCookie, getUserIdFromCookie, getVersionFromCookie, isVersionUpdated } from '@/utils/cookieUtils.js';
 import versionData from '@/assets/version.json';
 
 export default {
@@ -59,6 +59,7 @@ export default {
       changelog: [],
       currentVersion: versionData.version,
       versionChecked: false,
+      expandedVersions: [],
       // スクロール状態
       isScrolled: false,
       logoWidth: 350,  // ロゴの現在の幅
@@ -262,6 +263,8 @@ export default {
         userId = 'user_' + Math.random().toString(36).substr(2, 9);
         saveUserIdToCookie(userId);
       }
+      const savedVersion = getVersionFromCookie();
+      this.expandedVersions = this.computeExpandedVersions(savedVersion);
       
       // バージョンが更新されているかチェック
       if (isVersionUpdated(this.currentVersion)) {
@@ -272,6 +275,26 @@ export default {
         // バージョン情報をCookieに保存
         saveVersionToCookie(this.currentVersion);
       }
+    },
+    computeExpandedVersions(savedVersion) {
+      if (!savedVersion) {
+        return this.changelog.map((entry) => entry.version);
+      }
+      return this.changelog
+        .filter((entry) => this.compareVersions(entry.version, savedVersion) > 0)
+        .map((entry) => entry.version);
+    },
+    compareVersions(versionA, versionB) {
+      const partsA = versionA.split('.').map((part) => parseInt(part, 10) || 0);
+      const partsB = versionB.split('.').map((part) => parseInt(part, 10) || 0);
+      const length = Math.max(partsA.length, partsB.length);
+      for (let i = 0; i < length; i += 1) {
+        const diff = (partsA[i] || 0) - (partsB[i] || 0);
+        if (diff !== 0) {
+          return diff > 0 ? 1 : -1;
+        }
+      }
+      return 0;
     },
     /**
      * 更新履歴モーダルを開く（設定画面から呼び出される）

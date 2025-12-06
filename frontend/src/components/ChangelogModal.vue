@@ -10,7 +10,7 @@
           v-for="(entry, index) in changelog" 
           :key="entry.version"
           :expandable="true"
-          :defaultExpanded="index === 0"
+          :defaultExpanded="shouldExpand(entry.version, index)"
           class="changelog-entry"
         >
           <template #main>
@@ -56,12 +56,22 @@ export default {
     changelog: {
       type: Array,
       default: () => []
+    },
+    expandedVersions: {
+      type: Array,
+      default: () => []
     }
   },
   methods: {
     // モーダルを閉じる
     closeModal() {
       this.$emit('close');
+    },
+    shouldExpand(version, index) {
+      if (this.expandedVersions.length > 0) {
+        return this.expandedVersions.includes(version);
+      }
+      return index === 0;
     },
     // 変更タイプのラベルを取得
     getChangeTypeLabel(type) {

@@ -101,10 +101,7 @@ def oauth_redirect():
         return jsonify({"token":token.replace("Bearer ", ""),
                         "team":authTest.get("team")}), 200
     
-    url = "https://slack.com/api/oauth.v2.access"
-    headers = {
-        'Content-Type': 'application/x-www-form-urlencoded'
-    }
+    # 参照元ヘッダからリダイレクトURIの候補を構築し、Slackへの送信前に状態をログ出力する
     referer = request.headers.get('referer')
 
     # refererからベースURLを取得、なければデフォルト値を使用
@@ -112,10 +109,23 @@ def oauth_redirect():
         parsed_referer = urlparse(referer)
         scheme = parsed_referer.scheme
         domain = parsed_referer.netloc
-        full_url = f"{scheme}://{domain}"
+        path = parsed_referer.path or '/'
+        # Slack 側のリダイレクトURIと厳密一致させるため、ルートパスは末尾スラッシュを除去する
+        if path == '/':
+            full_url = f"{scheme}://{domain}"
+        else:
+            full_url = f"{scheme}://{domain}{path}"
     else:
         # デフォルトのリダイレクトURIを設定
         full_url = request.host_url.rstrip('/')
+
+    # デバッグログ: 取得したコードと参照元情報
+    print(f"oauth_redirect: received code={code}, token_present={'yes' if token else 'no'}, referer={referer}, redirect_uri={full_url}")
+
+    url = "https://slack.com/api/oauth.v2.access"
+    headers = {
+        'Content-Type': 'application/x-www-form-urlencoded'
+    }
 
     params={
         "client_id": SLACK_CLIENT_ID,
@@ -123,7 +133,13 @@ def oauth_redirect():
         "code": code,
         "redirect_uri":full_url
     }
-    response = requests.get(url, params=params, headers=headers)
+    # Slack ドキュメント通りにPOSTでリクエストを行い、直前のパラメータも安全な範囲で記録する
+    safe_params = {key: value for key, value in params.items() if key != "client_secret"}
+    print(f"oauth_redirect: sending oauth.v2.access with params={safe_params}")
+    response = requests.post(url, data=params, headers=headers)
+
+    # Slack API のレスポンスをログ出力
+    print(f"oauth_redirect: slack response status={response.status_code}, body={response.text}")
 
     if response.status_code == 200:
         res = response.json() 

@@ -5,7 +5,7 @@
         <span v-if="localPost.isFollowed" class="follow-badge">  </span>
         <a :href="localPost.channelUrl" class="channel-name" target="_blank" rel="noopener noreferrer"> {{
           localPost.channelName }} </a>
-        <span v-if="localPost.isFollowed" class="follow-badge">✓</span>
+        <span v-if="localPost.isFollowed" class="follow-badge" title="フォロー中">✓</span>
       </div>
       <div class="post-container">
         <img :src="userImage" alt="User Image" class="user-image" />
@@ -382,6 +382,9 @@ export default {
     window.removeEventListener('wheel', this.handleWheel);
     window.removeEventListener('touchstart', this.handleTouchStart);
     window.removeEventListener('touchmove', this.handleTouchMove);
+
+    // 破棄時にスクロール制御をリセット
+    document.body.style.overflow = '';
 
     // タップイベントリスナー (スマホ)
     if (this.isTouchDevice) {
@@ -845,9 +848,11 @@ export default {
         .map(file => file.url);
       this.lightboxIndex = index;
       this.lightboxVisible = true;
+      document.body.style.overflow = 'hidden'; // 背景のスクロールを抑止
     },
     closeLightbox() {
       this.lightboxVisible = false;
+      document.body.style.overflow = ''; // スクロール許可を元に戻す
     },
     async openModal(file) {
       await this.fetchImageSrc(file, false);
@@ -1312,7 +1317,7 @@ export default {
 
 .channel-header {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: center;
   gap: 4px;
   margin-bottom: 8px;
@@ -1324,6 +1329,8 @@ export default {
   color: inherit;
   text-decoration: none;
   text-align: center;
+  display: inline-block;
+  line-height: 1.1;
 }
 
 .follow-badge {
@@ -1332,6 +1339,11 @@ export default {
   font-weight: bold;
   width: 16px;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  padding-bottom: 1px;
 }
 
 .follow-badge-placeholder {
@@ -1365,6 +1377,7 @@ export default {
   flex-direction: column;
   gap: 8px;
   min-width: 0;
+  padding-right: 12px;
 }
 
 /* 画像コンテナ：カード中央に配置 */
@@ -1402,7 +1415,9 @@ export default {
 
 .content {
   margin-bottom: 5px;
-  text-align: left;
+  text-align: justify;
+  text-justify: inter-ideograph;
+  text-align-last: left;
   /* 子要素を中央揃え */
   align-items: center;
   /* テキストが改行されるようにする */
@@ -1743,6 +1758,21 @@ export default {
 
 .thread-reply {
   margin-bottom: 10px;
+}
+
+/* スレッド内はアイコンと名前を横並びで維持する */
+.thread-reply .header {
+  align-items: center;
+}
+
+.thread-reply .user-info {
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+
+.thread-reply .username,
+.thread-reply .username-en {
+  white-space: nowrap;
 }
 
 .slide-fade-enter-active,
