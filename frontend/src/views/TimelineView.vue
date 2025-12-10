@@ -8,7 +8,7 @@
 
     <!-- 絵文字ピッカー -->
     <div v-if="showEmojiPicker" :style="{ top: pickerPosition.top + 'px', left: pickerPosition.left + 'px' }"
-      class="emoji-picker modal">
+      class="emoji-picker">
       <Picker :data="emojiIndex" set="apple" showPreview="false" @select="selectReaction" @focus="movePickerUp"
         @blur="resetPickerPosition" />
     </div>
@@ -422,29 +422,35 @@ export default {
       this.selectedTs = ts;
       this.selectedThreadTs = threadTs;
       this.showEmojiPicker = true;
-      // ホバーした要素の位置を取得
-      const targetElement = event?.currentTarget;
-      if (targetElement) {
-        const rect = targetElement.getBoundingClientRect();
-
-        // Pickerの位置を設定
-        this.pickerPosition = {
-          top: rect.bottom + window.scrollY + 10, // スクロール量を考慮
-        };
-
-      }
-      // 画面からはみ出ないように調整
-      const pickerHeight = 420; // 絵文字ピッカーの高さ
       const pickerWidth = 355; // 絵文字ピッカーの幅
+      const pickerHeight = 420; // 絵文字ピッカーの高さ
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
 
-      if (this.pickerPosition.left + pickerWidth > viewportWidth) {
-        this.pickerPosition.left = viewportWidth - pickerWidth - 10;
+      let nextLeft = Math.max((viewportWidth - pickerWidth) / 2, 10);
+      let nextTop = 20;
+
+      const targetElement = event?.currentTarget;
+      if (targetElement) {
+        const rect = targetElement.getBoundingClientRect();
+        nextTop = rect.bottom + 10;
       }
-      if (this.pickerPosition.top + pickerHeight > viewportHeight) {
-        this.pickerPosition.top = viewportHeight - pickerHeight - 200;
+
+      if (nextLeft + pickerWidth > viewportWidth - 10) {
+        nextLeft = viewportWidth - pickerWidth - 10;
       }
+
+      if (nextTop + pickerHeight > viewportHeight - 10) {
+        nextTop = viewportHeight - pickerHeight - 10;
+      }
+      if (nextTop < 10) {
+        nextTop = 10;
+      }
+
+      this.pickerPosition = {
+        top: nextTop,
+        left: nextLeft,
+      };
     },
     preventContextMenu(event) {
       event.preventDefault();
@@ -521,7 +527,7 @@ export default {
 }
 
 .emoji-picker {
-  position: absolute;
+  position: fixed;
   z-index: 1000;
   display: flex;
   flex-direction: column;

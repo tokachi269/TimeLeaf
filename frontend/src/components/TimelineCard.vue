@@ -2,10 +2,28 @@
   <div class="timeline-card">
     <div v-if="canDisplayPost" class="card">
       <div class="channel-header">
-        <span v-if="localPost.isFollowed" class="follow-badge">  </span>
+        <span class="follow-badge-placeholder" aria-hidden="true"></span>
         <a :href="localPost.channelUrl" class="channel-name" target="_blank" rel="noopener noreferrer"> {{
           localPost.channelName }} </a>
-        <span v-if="localPost.isFollowed" class="follow-badge" title="フォロー中">✓</span>
+        <span v-if="localPost.isFollowed" class="follow-badge-container">
+          <span
+            class="follow-badge"
+            role="img"
+            aria-label="フォロー中"
+            title="フォロー中"
+            tabindex="0"
+            @click.stop="handleFollowBadgePress"
+            @touchstart.prevent="handleFollowBadgePress"
+            @keydown.enter.prevent="handleFollowBadgePress"
+            @keydown.space.prevent="handleFollowBadgePress"
+            @mouseenter="handleFollowBadgeEnter"
+            @mouseleave="handleFollowBadgeLeave"
+            @focus="handleFollowBadgeEnter"
+            @blur="handleFollowBadgeLeave"
+          >✓</span>
+          <span v-if="showFollowInfo" class="follow-badge-label" role="status">フォロー中</span>
+        </span>
+        <span v-else class="follow-badge-placeholder" aria-hidden="true"></span>
       </div>
       <div class="post-container">
         <img :src="userImage" alt="User Image" class="user-image" />
@@ -266,6 +284,8 @@ export default {
       deviceId: null,
       currentTrackUri: null,
       scale: 1, // 追加: 拡大縮小率を管理する変数
+      showFollowInfo: false,
+      followInfoTimer: null,
     };
   },
   inject: {
@@ -385,6 +405,11 @@ export default {
 
     // 破棄時にスクロール制御をリセット
     document.body.style.overflow = '';
+
+    if (this.followInfoTimer) {
+      clearTimeout(this.followInfoTimer);
+      this.followInfoTimer = null;
+    }
 
     // タップイベントリスナー (スマホ)
     if (this.isTouchDevice) {
@@ -691,7 +716,7 @@ export default {
     },
 
     async fetchImageSrc(file, init) {
-      const imageTypes = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff'];// 画像タイプの一覧
+      const imageTypes = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff']; // 画像タイプの一覧
       let mimetype;
       let fetchUrl;
       if (init) {
@@ -704,8 +729,10 @@ export default {
             fetchUrl = file.thumb_video;
           }
         } else if (imageTypes.includes(file.filetype)) {
-          mimetype = file.mimetype;
-          if (file.thumb_720) {
+          mimetype = file.mimetype || 'image/jpeg';
+          if (file.thumb_1024) {
+            fetchUrl = file.thumb_1024;
+          } else if (file.thumb_720) {
             fetchUrl = file.thumb_720;
           } else if (file.thumb_480) {
             fetchUrl = file.thumb_480;
@@ -714,8 +741,12 @@ export default {
           }
         }
       } else {
-        mimetype = file.mimetype;
-        fetchUrl = file.url_private;
+        // モーダル表示時は可能な限り高解像度URLを優先する
+        mimetype = file.mimetype || 'image/jpeg';
+        fetchUrl = file.url_private_download || file.url_private || file.original_hq_url || file.permalink;
+        if (!fetchUrl && file.thumb_1024) {
+          fetchUrl = file.thumb_1024;
+        }
       }
       if (fetchUrl) {
         try {
@@ -742,6 +773,9 @@ export default {
           });
         } catch (error) {
           console.error("Error fetching image:", error);
+          if (!init) {
+            this.modalImageUrl = fetchUrl;
+          }
           return fetchUrl; // エラーが発生した場合、元のURLを表示
         }
       }
@@ -751,13 +785,14 @@ export default {
       if (localPost && localPost.attachments && localPost.attachments.length > 0) {
         const attachment = localPost.attachments[0]; // 最初の添付情報を取得
         if (attachment.service_name === "X (formerly Twitter)") {
+          const twitterText = attachment.text ? this.formattingContext(attachment.text, null) : "";
           return `
             <div class="twitter-preview">
               <a href="${attachment.from_url}" target="_blank" rel="noopener noreferrer" class="twitter-header">
                 <img src="${attachment.thumb_url ? attachment.thumb_url : attachment.service_icon}" alt="Twitter Icon" class="twitter-icon" />
                 <strong>${attachment.title}</strong>
               </a>
-              <div class="twitter-content">${attachment.text ? attachment.text : ""}</div>
+              <div class="twitter-content">${twitterText}</div>
               ${attachment.image_url ? `<img src="${attachment.image_url}" alt="Thumbnail" class="twitter-thumbnail" />` : ''}
             </div>
           `;
@@ -901,6 +936,35 @@ export default {
       const dx = touch1.clientX - touch2.clientX;
       const dy = touch1.clientY - touch2.clientY;
       return Math.sqrt(dx * dx + dy * dy);
+    },
+    handleFollowBadgeEnter() {
+      if (this.followInfoTimer) {
+        clearTimeout(this.followInfoTimer);
+        this.followInfoTimer = null;
+      }
+      this.showFollowInfo = true;
+    },
+    handleFollowBadgePress() {
+      if (!this.isTouchDevice) {
+        this.handleFollowBadgeEnter();
+        return;
+      }
+      this.showFollowInfo = true;
+      if (this.followInfoTimer) {
+        clearTimeout(this.followInfoTimer);
+        this.followInfoTimer = null;
+      }
+      this.followInfoTimer = setTimeout(() => {
+        this.showFollowInfo = false;
+        this.followInfoTimer = null;
+      }, 2000);
+    },
+    handleFollowBadgeLeave() {
+      this.showFollowInfo = false;
+      if (this.followInfoTimer) {
+        clearTimeout(this.followInfoTimer);
+        this.followInfoTimer = null;
+      }
     },
 
     playVideo(index) {
@@ -1206,19 +1270,19 @@ export default {
 </script>
 
 <style scoped>
-::v-deep .custom-unordered-list {
+:deep(.custom-unordered-list) {
   margin: 0 0 1em 2em;
   padding: 0;
   list-style-type: disc;
 }
 
-::v-deep .custom-ordered-list {
+:deep(.custom-ordered-list) {
   margin: 0 0 1em 2em;
   padding: 0;
   /*  list-style-type: decimal; */
 }
 
-::v-deep .custom-italic {
+:deep(.custom-italic) {
   font-family: monospace;
   font-style: italic;
   transform: skew(-10deg);
@@ -1232,6 +1296,9 @@ export default {
   --padding: 16px;
   --border-radius: 8px;
   --box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
+  --font-size-title: 16px;
+  --font-size-body: 14px;
+  --font-size-caption: 12px;
 }
 
 .card {
@@ -1242,15 +1309,15 @@ export default {
   box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
-  font-size: 16px;
+  font-size: var(--font-size-body);
   background-color: var(--background-card-body);
 }
 
-::v-deep .highlight {
+:deep(.highlight) {
   background-color: rgba(175, 245, 115, 0.308) !important;
 }
 
-::v-deep .emoji-image {
+:deep(.emoji-image) {
   /* v-deepをつけないとv-htmlで挿入したhtmlタグにcssが適用されない */
   display: inline-block;
   vertical-align: middle;
@@ -1268,7 +1335,7 @@ export default {
 
 }
 
-::v-deep .add-reaction-image {
+:deep(.add-reaction-image) {
   display: inline-block;
   vertical-align: middle;
   width: 1.5em;
@@ -1290,14 +1357,14 @@ export default {
   animation: enlargeEmoji 0.2s ease forwards !important;
 }
 
-::v-deep .emoji-image:hover {
+:deep(.emoji-image:hover) {
   /* 画像を2倍に拡大 */
   /* enlargeEmojiアニメーションを適用 */
   animation: enlargeEmoji 0.1s ease forwards;
   z-index: 10;
 }
 
-::v-deep .reaction-item .emoji-image:hover {
+:deep(.reaction-item .emoji-image:hover) {
   /* 画像を1倍に拡大(=reaction-item内のemojiは拡大しない) */
   transform: scale(1) !important;
 }
@@ -1333,22 +1400,76 @@ export default {
   line-height: 1.1;
 }
 
+.follow-badge-container {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .follow-badge {
-  font-size: 0.85em;
+  font-size: calc(var(--font-size-caption) - 2px);
   color: var(--primary-color);
   font-weight: bold;
-  width: 16px;
+  min-width: 16px;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   line-height: 1;
-  padding-bottom: 1px;
+  padding-bottom: 0;
+  gap: 3px;
+  padding: 1px 4px;
+  border-radius: 6px;
+  cursor: pointer;
 }
 
 .follow-badge-placeholder {
   width: 16px;
   flex-shrink: 0;
+}
+
+.follow-badge-label {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  background-color: var(--modal-background-color);
+  color: var(--text-base-color);
+  font-weight: 400;
+  font-size: calc(var(--font-size-caption) - 4px);
+  white-space: nowrap;
+  padding: 2px 4px;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1.1;
+  border-radius: 6px;
+  border: 1px solid var(--background-card-border);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.follow-badge-label::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 12px;
+  margin-top: -1px;
+  border-width: 5px 5px 0 5px;
+  border-style: solid;
+  border-color: var(--modal-background-color) transparent transparent transparent;
+}
+
+.follow-badge-label::before {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 12px;
+  margin-top: -1px;
+  border-width: 6px 6px 0 6px;
+  border-style: solid;
+  border-color: var(--background-card-border) transparent transparent transparent;
+  z-index: -1;
 }
 
 /* 投稿全体のコンテナ：アイコン列と内容列 */
@@ -1393,21 +1514,21 @@ export default {
   display: flex;
   flex-wrap: wrap;
   text-align: left;
-  align-items: center;
+  align-items: flex-end;
   gap: 8px;
   min-width: 0;
 }
 
 .username {
   font-weight: bold;
-  font-size: 0.9em;
+  font-size: var(--font-size-title);
   color: var(--text-base-color);
   word-break: break-word;
   line-height: 1.3;
 }
 
 .username-en {
-  font-size: 0.9em;
+  font-size: var(--font-size-caption);
   color: var(--text-secound-color);
   word-break: break-word;
   line-height: 1.3;
@@ -1429,7 +1550,7 @@ export default {
   overflow: visible;
 }
 
-::v-deep a {
+:deep(a) {
   margin-bottom: 5px;
   text-align: left;
   /* 長いURLを折り返す */
@@ -1451,48 +1572,48 @@ export default {
 
 .date {
   color: var(--text-secound-color);
-  font-size: 0.9em;
+  font-size: var(--font-size-caption);
   text-align: right;
 }
 
-::v-deep .url-preview {
+:deep(.url-preview) {
   display: flex;
   align-items: center;
   margin-top: 10px;
 }
 
-::v-deep .url-thumbnail {
+:deep(.url-thumbnail) {
   max-width: 100px;
   margin-right: 10px;
   border-radius: 8px;
 }
 
-::v-deep .url-title {
+:deep(.url-title) {
   color: var(--text-url-color);
   text-align: left;
-  font-size: 14px;
+  font-size: var(--font-size-body);
 }
 
-::v-deep .url-title a {
+:deep(.url-title a) {
   color: var(--text-url-color);
   text-decoration: none;
 }
 
-::v-deep .url-title {
+:deep(.url-title) {
   color: var(--text-url-color);
   text-align: left;
-  font-size: 14px;
+  font-size: var(--font-size-body);
 }
 
-::v-deep .url {
+:deep(.url) {
   color: var(--text-url-color);
 }
 
-::v-deep .url a:hover {
+:deep(.url a:hover) {
   color: var(--text-url-hover-color);
 }
 
-::v-deep .url-preview-container {
+:deep(.url-preview-container) {
   margin-top: 20px;
 }
 
@@ -1524,14 +1645,14 @@ export default {
   cursor: pointer;
 }
 
-::v-deep .image-gallery.single-image {
+:deep(.image-gallery.single-image) {
   display: flex;
   justify-content: center;
   align-items: center;
   max-height: 600px !important;
 }
 
-::v-deep .image-gallery.multi-image {
+:deep(.image-gallery.multi-image) {
   grid-template-columns: repeat(2, 1fr);
   grid-template-rows: repeat(2, 1fr);
   grid-auto-rows: minmax(150px, auto);
@@ -1599,7 +1720,7 @@ export default {
   display: inline-block;
   background-color: rgba(93, 93, 93, 0.8);
   padding: 6px 10px;
-  font-size: .8em;
+  font-size: var(--font-size-caption);
   border-radius: 999px;
   box-shadow: 0 2px 6px #0003;
 }
@@ -1617,7 +1738,7 @@ export default {
   gap: 4px;
   background-color: rgba(223, 223, 223, 0.2);
   padding: 4px 6px;
-  font-size: .8em;
+  font-size: var(--font-size-caption);
   border-radius: 7px;
   box-shadow: 0 2px 3px #0003;
   /* 文字を選択できなくする */
@@ -1659,7 +1780,7 @@ export default {
 }
 
 .reaction-count {
-  font-size: 14px;
+  font-size: var(--font-size-caption);
 }
 
 .user-popup {
@@ -1669,7 +1790,7 @@ export default {
   z-index: 1000;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
   max-width: 200px;
-  font-size: 0.9em;
+  font-size: var(--font-size-caption);
   background-color: var(--modal-background-color);
 }
 
@@ -1693,7 +1814,7 @@ export default {
   padding: 10px;
   border: 1px solid #ccc;
   border-radius: 4px;
-  font-size: 14px;
+  font-size: var(--font-size-body);
   resize: none;
 }
 
@@ -1712,7 +1833,7 @@ export default {
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--font-size-body);
   margin-right: 30px;
   transition: background-color 0.3s ease;
 }
@@ -1762,17 +1883,26 @@ export default {
 
 /* スレッド内はアイコンと名前を横並びで維持する */
 .thread-reply .header {
+  display: flex;
   align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  min-width: 0;
 }
 
 .thread-reply .user-info {
   flex-wrap: nowrap;
   gap: 6px;
+  align-items: flex-end;
 }
 
 .thread-reply .username,
 .thread-reply .username-en {
   white-space: nowrap;
+}
+
+.thread-reply .content-area .content {
+  margin: 6px 12px 6px 12px;
 }
 
 .slide-fade-enter-active,
@@ -1811,7 +1941,7 @@ export default {
   padding: 5px;
   background-color: var(--button-notactive-background-color) !important;
   border: none;
-  font-size: 0.9em;
+  font-size: var(--font-size-caption);
   cursor: pointer;
   text-align: center;
   transition: background-color 0.3s ease, color 0.3s ease;
@@ -1822,7 +1952,7 @@ export default {
   background-color: var(--button-notactive-hover-background-color) !important;
 }
 
-::v-deep .inline-code {
+:deep(.inline-code) {
   border: 1px solid var(--background-card-border);
   color: #ff2222;
   padding: 2px 4px;
@@ -1839,7 +1969,7 @@ export default {
 }
 
 /* 引用ブロックのスタイルを追加 */
-::v-deep blockquote {
+:deep(blockquote) {
   border-left: 4px solid #ccc;
   padding: 10px 20px;
   margin: 10px 0;
@@ -1847,7 +1977,7 @@ export default {
   color: #555;
 }
 
-::v-deep pre code.hljs {
+:deep(pre code.hljs) {
   display: block !important;
   min-width: 100% !important;
   /* 横スクロールバーを表示 */
@@ -1856,7 +1986,7 @@ export default {
   white-space: pre !important;
 }
 
-::v-deep p {
+:deep(p) {
   display: block;
   margin-block-start: 0em;
   margin-block-end: 0em;
@@ -1865,7 +1995,7 @@ export default {
   unicode-bidi: isolate;
 }
 
-::v-deep .twitter-header {
+:deep(.twitter-header) {
   flex-grow: 1;
   display: flex;
   text-align: left;
@@ -1873,7 +2003,7 @@ export default {
   gap: 8px;
 }
 
-::v-deep .twitter-preview {
+:deep(.twitter-preview) {
   border: 1px solid #e1e8ed;
   border-radius: 8px;
   overflow: hidden;
@@ -1881,33 +2011,33 @@ export default {
   padding: 10px;
 }
 
-::v-deep .twitter-image {
+:deep(.twitter-image) {
   width: 100%;
   height: auto;
 }
 
-::v-deep .twitter-content {
+:deep(.twitter-content) {
   margin-bottom: 5px;
   text-align: left;
   align-items: center;
   padding: 10px;
 }
 
-::v-deep .twitter-icon {
+:deep(.twitter-icon) {
   width: 24px;
   height: 24px;
   margin-right: 10px;
 }
 
-::v-deep .twitter-text {
+:deep(.twitter-text) {
   flex: 1;
 }
 
-::v-deep .twitter-text p {
+:deep(.twitter-text p) {
   margin: 0;
 }
 
-::v-deep .twitter-thumbnail {
+:deep(.twitter-thumbnail) {
   width: 100%;
   height: auto;
   max-height: 600px;
@@ -1916,7 +2046,7 @@ export default {
   border-radius: 8px;
 }
 
-::v-deep pre {
+:deep(pre) {
   border: 1px solid var(--background-card-border);
   font-variant-ligatures: none;
   white-space: pre-wrap;

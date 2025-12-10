@@ -1,6 +1,20 @@
 {
-  "version": "1.1.1",
+  "version": "1.1.2",
   "changelog": [
+    {
+      "version": "1.1.2",
+      "date": "2025-12-10",
+      "changes": [
+        {
+          "type": "improvement",
+          "description": "twtter.comドメインのリンクに対しても絵文字が正しく表示されるようにしました。"
+        },
+        {
+          "type": "improvement",
+          "description": "絵文字ピッカー操作性を改善しました。"
+        }
+      ]
+    },
     {
       "version": "1.1.1",
       "date": "2025-12-06",

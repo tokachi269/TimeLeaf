@@ -264,6 +264,14 @@ export default {
         saveUserIdToCookie(userId);
       }
       const savedVersion = getVersionFromCookie();
+
+      if (!savedVersion) {
+        // トークンCookieが存在しない完全新規ユーザーは更新履歴を表示しない
+        saveVersionToCookie(this.currentVersion);
+        this.expandedVersions = [];
+        return;
+      }
+
       this.expandedVersions = this.computeExpandedVersions(savedVersion);
       
       // バージョンが更新されているかチェック

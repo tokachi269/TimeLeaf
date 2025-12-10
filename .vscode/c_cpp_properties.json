@@ -1,0 +1,17 @@
+{
+  "configurations": [
+    {
+      "name": "Windows",
+      "includePath": [
+        "${workspaceFolder}/**",
+        "D:/GitHub/vcpkg/installed/x64-windows/include"
+      ],
+      "defines": [],
+      "compilerPath": "D:/GitHub/emsdk/upstream/bin/clang.exe",
+      "cStandard": "c17",
+      "cppStandard": "c++17",
+      "intelliSenseMode": "windows-clang-x64"
+    }
+  ],
+  "version": 4
+}
