@@ -71,6 +71,7 @@ export default {
         top: 0, // Pickerの高さを考慮して調整
         left: 0
       }, // Pickerのスタイルを格納する変数
+      pickerAnchorRect: null,
       isScrolling: false,
       isTapped: false, // タップ状態を管理
       recentEmojis: ["shochi", "arigatougozaimasu", "yoroshikuonegaishimasu", "参加", "otsu", "すごい", "お大事に", "sumi", "さすが", "お疲れ様でした", "munen", "素敵", "yoros", "わくわく", "pikachu", "iine", "異議なし", "おめでとうございます"],//, "おつかれさま", "了解です"
@@ -422,22 +423,44 @@ export default {
       this.selectedTs = ts;
       this.selectedThreadTs = threadTs;
       this.showEmojiPicker = true;
+      const targetElement = event?.currentTarget;
+      this.pickerAnchorRect = targetElement ? targetElement.getBoundingClientRect() : null;
+      this.updatePickerPosition(this.pickerAnchorRect);
+    },
+    movePickerUp() {
+      if (!this.showEmojiPicker || !this.isTouchDevice) {
+        return;
+      }
+      this.updatePickerPosition(null, { forceTop: 10 });
+    },
+    resetPickerPosition() {
+      if (!this.showEmojiPicker) {
+        return;
+      }
+      if (this.isTouchDevice) {
+        this.updatePickerPosition(null, { forceTop: 10 });
+        return;
+      }
+      this.updatePickerPosition(this.pickerAnchorRect);
+    },
+    updatePickerPosition(anchorRect = null, options = {}) {
       const pickerWidth = 355; // 絵文字ピッカーの幅
       const pickerHeight = 420; // 絵文字ピッカーの高さ
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
 
       let nextLeft = Math.max((viewportWidth - pickerWidth) / 2, 10);
-      let nextTop = 20;
+      let nextTop = options.forceTop ?? (this.isTouchDevice ? 10 : 20);
 
-      const targetElement = event?.currentTarget;
-      if (targetElement) {
-        const rect = targetElement.getBoundingClientRect();
-        nextTop = rect.bottom + 10;
+      if (!options.forceTop && anchorRect && !this.isTouchDevice) {
+        nextTop = anchorRect.bottom + 10;
       }
 
       if (nextLeft + pickerWidth > viewportWidth - 10) {
         nextLeft = viewportWidth - pickerWidth - 10;
+      }
+      if (nextLeft < 10) {
+        nextLeft = 10;
       }
 
       if (nextTop + pickerHeight > viewportHeight - 10) {

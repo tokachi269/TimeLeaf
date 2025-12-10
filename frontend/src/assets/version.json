@@ -7,7 +7,7 @@
       "changes": [
         {
           "type": "improvement",
-          "description": "twtter.comドメインのリンクに対しても絵文字が正しく表示されるようにしました。"
+          "description": "twitter.comドメインのリンクに対しても絵文字が正しく表示されるようにしました。"
         },
         {
           "type": "improvement",
