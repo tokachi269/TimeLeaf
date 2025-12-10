@@ -119,8 +119,13 @@ def oauth_redirect():
         # デフォルトのリダイレクトURIを設定
         full_url = request.host_url.rstrip('/')
 
-    # デバッグログ: 取得したコードと参照元情報
-    print(f"oauth_redirect: received code={code}, token_present={'yes' if token else 'no'}, referer={referer}, redirect_uri={full_url}")
+    # ログ用の共通コンテキスト（エラー時のみ出力）
+    context_info = {
+        "code": code,
+        "token_present": 'yes' if token else 'no',
+        "referer": referer,
+        "redirect_uri": full_url,
+    }
 
     url = "https://slack.com/api/oauth.v2.access"
     headers = {
@@ -133,18 +138,22 @@ def oauth_redirect():
         "code": code,
         "redirect_uri":full_url
     }
-    # Slack ドキュメント通りにPOSTでリクエストを行い、直前のパラメータも安全な範囲で記録する
+    # Slack ドキュメント通りにPOSTでリクエストを行う
     safe_params = {key: value for key, value in params.items() if key != "client_secret"}
-    print(f"oauth_redirect: sending oauth.v2.access with params={safe_params}")
-    response = requests.post(url, data=params, headers=headers)
-
-    # Slack API のレスポンスをログ出力
-    print(f"oauth_redirect: slack response status={response.status_code}, body={response.text}")
+    try:
+        response = requests.post(url, data=params, headers=headers, timeout=10)
+    except requests.RequestException as exc:
+        print(f"oauth_redirect error: request failed {exc}, context={context_info}, params={safe_params}")
+        return jsonify({"error": "Failed to complete Slack OAuth"}), 502
 
     if response.status_code == 200:
-        res = response.json() 
+        try:
+            res = response.json()
+        except ValueError:
+            print(f"oauth_redirect error: failed to parse Slack response as JSON, context={context_info}, body={response.text}")
+            return jsonify({"error": "Invalid response from Slack"}), 502
+
         if res.get("ok"):
-            print(res.get("authed_user").get('access_token'))
             # user_cache からユーザー名を取得。存在しない場合は user_id のまま
             user_info = ""
             for user in user_cache:
@@ -157,8 +166,10 @@ def oauth_redirect():
                             "name":user_info.get('display_name'),
                             "team":res.get("team").get('name')}), 200
         else:
+            print(f"oauth_redirect error: Slack responded ok=false, context={context_info}, body={response.text}")
             return jsonify(response.json()), 400
     else:
+        print(f"oauth_redirect error: Slack HTTP {response.status_code}, context={context_info}, body={response.text}")
         return jsonify({"error": "Failed to fetch messages"}), 500
 
 def auth_test(token):
