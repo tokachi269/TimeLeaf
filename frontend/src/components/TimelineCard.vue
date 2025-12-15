@@ -13,7 +13,10 @@
             title="フォロー中"
             tabindex="0"
             @click.stop="handleFollowBadgePress"
-            @touchstart.prevent="handleFollowBadgePress"
+            @touchstart="handleFollowBadgeTouchStart"
+            @touchmove="handleFollowBadgeTouchMove"
+            @touchend="handleFollowBadgeTouchEnd"
+            @touchcancel="handleFollowBadgeTouchCancel"
             @keydown.enter.prevent="handleFollowBadgePress"
             @keydown.space.prevent="handleFollowBadgePress"
             @mouseenter="handleFollowBadgeEnter"
@@ -286,6 +289,8 @@ export default {
       scale: 1, // 追加: 拡大縮小率を管理する変数
       showFollowInfo: false,
       followInfoTimer: null,
+      followBadgeTouchStartPos: null, // タップ移動量の判定用座標
+      followBadgeTouchMoved: false,
     };
   },
   inject: {
@@ -937,6 +942,43 @@ export default {
       const dy = touch1.clientY - touch2.clientY;
       return Math.sqrt(dx * dx + dy * dy);
     },
+    // タッチ操作でスクロールとタップを判別しつつフォローバッジの吹き出しを制御
+    handleFollowBadgeTouchStart(event) {
+      if (!this.isTouchDevice || !event.touches || event.touches.length === 0) {
+        return;
+      }
+      const touch = event.touches[0];
+      this.followBadgeTouchStartPos = { x: touch.clientX, y: touch.clientY };
+      this.followBadgeTouchMoved = false;
+    },
+    handleFollowBadgeTouchMove(event) {
+      if (!this.followBadgeTouchStartPos || !event.touches || event.touches.length === 0) {
+        return;
+      }
+      const touch = event.touches[0];
+      const deltaX = Math.abs(touch.clientX - this.followBadgeTouchStartPos.x);
+      const deltaY = Math.abs(touch.clientY - this.followBadgeTouchStartPos.y);
+      if (deltaX > 8 || deltaY > 8) {
+        this.followBadgeTouchMoved = true;
+      }
+    },
+    handleFollowBadgeTouchEnd(event) {
+      if (!this.isTouchDevice || !event) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      const shouldShow = !this.followBadgeTouchMoved;
+      this.followBadgeTouchStartPos = null;
+      this.followBadgeTouchMoved = false;
+      if (shouldShow) {
+        this.handleFollowBadgePress();
+      }
+    },
+    handleFollowBadgeTouchCancel() {
+      this.followBadgeTouchStartPos = null;
+      this.followBadgeTouchMoved = false;
+    },
     handleFollowBadgeEnter() {
       if (this.followInfoTimer) {
         clearTimeout(this.followInfoTimer);
@@ -991,7 +1033,7 @@ export default {
       await nextTick();
       const galleryHeight = this.$refs.imageGallery?.offsetHeight;
       if (galleryHeight && this.post?.files?.length) {
-        console.log(this.post.files.length + " galleryHeight:" + galleryHeight);
+        // console.log(this.post.files.length + " galleryHeight:" + galleryHeight);
         this.showExpandButton = this.post.files.length > 4 || galleryHeight >= this.maxHeight;
       }
     },
@@ -1098,74 +1140,61 @@ export default {
       //絵文字ピッカーで選択された絵文字をハンドルし、リアクションを追加または削除
       this.insertOrDeleteReaction(emoji.short_name, parentTs, threadTs, false);
     },
-    async insertOrDeleteReaction(name, parentTs, threadTs, needDelete) {
+    async insertOrDeleteReaction(name, _parentTs, threadTs, needDelete) {
       console.log('insertOrDeleteReaction emoji');
-      // 選択した絵文字がリアクション済みか確認
-      let reaction = this.existsReaction(name, threadTs);
-      let reactionList = this.existsReactionsList(threadTs);
+      const reaction = this.existsReaction(name, threadTs);
+      const reactionList = this.existsReactionsList(threadTs);
       const isReacted = reaction?.users.some(user => user.id === this.localPost.accessedId);
 
       if (isReacted && reaction) {
-        // リアクション済みの場合削除or何もしない
-        if (needDelete) {
-          await this.fetchDeleteReaction(name, threadTs);
-          const index = reactionList?.findIndex(reaction => reaction.name === name);
-          if (reaction.count == 1) {
-            // リアクションのカウントが0人になったら削除
-            if (index !== -1) {
-              reactionList.splice(index, 1);
-              this.isUserListVisible = false;
-            }
-          } else {
-            // リアクションのカウントが0人でなければユーザーのみ消す
-            reaction.count -= 1;
-            const userIndex = reaction.users.findIndex(user => user.id === this.localPost.accessedId);
-            if (userIndex !== -1) {
-              reaction.users.splice(userIndex, 1);
-            }
-            this.reactions[index] = reaction;
-          }
-        } else {
-          // 何もせずに返却
+        if (!needDelete) {
           return;
         }
-      } else {
-        // リアクション追加
-        // Slackにリクエスト
-        const successedReactName = await this.fetchAddReaction(name, threadTs);
-        if (successedReactName) {
-          // 該当の絵文字が存在すれば既存のオブジェクトに追加し、なければ新規追加
-          const existingReaction = this.existsReaction(successedReactName, threadTs);
-          if (existingReaction) {
-            existingReaction.count += 1;
-            existingReaction.users.push({ id: this.localPost.accessedId, name: this.localPost.accessedName });
-            const index = reactionList.findIndex(reaction => reaction.name === name);
-            reactionList[index] = reaction;
-          } else {
-            if (parentTs === threadTs) {
-              this.reactions.push({
-                "count": 1,
-                "name": successedReactName,
-                "users": [{ id: this.localPost.accessedId, name: this.localPost.accessedName }]
-              });
-            } else if (reactionList) {
-              reactionList.push({
-                "count": 1,
-                "name": successedReactName,
-                "users": [{ id: this.localPost.accessedId, name: this.localPost.accessedName }]
-              });
+
+        const snapshot = this.createReactionSnapshot(threadTs);
+        if (reactionList) {
+          const reactionIndex = reactionList.findIndex(item => item.name === name);
+          if (reactionIndex !== -1) {
+            if (reaction.count === 1) {
+              reactionList.splice(reactionIndex, 1);
+              this.isUserListVisible = false;
             } else {
-              const message = this.replies?.find((msg) => msg.ts === threadTs);
-              if (message) {
-                message.reactions = [{
-                  "count": 1,
-                  "name": successedReactName,
-                  "users": [{ id: this.localPost.accessedId, name: this.localPost.accessedName }]
-                }];
+              reaction.count -= 1;
+              const userIndex = reaction.users.findIndex(user => user.id === this.localPost.accessedId);
+              if (userIndex !== -1) {
+                reaction.users.splice(userIndex, 1);
               }
             }
           }
         }
+
+        const deleteSucceeded = await this.fetchDeleteReaction(name, threadTs);
+        if (!deleteSucceeded) {
+          this.restoreReactionSnapshot(threadTs, snapshot);
+        }
+        return;
+      }
+
+      const snapshot = this.createReactionSnapshot(threadTs);
+      const targetList = this.getOrCreateReactionList(threadTs);
+      if (!targetList) {
+        return;
+      }
+
+      if (reaction) {
+        reaction.count += 1;
+        reaction.users.push({ id: this.localPost.accessedId, name: this.localPost.accessedName });
+      } else {
+        targetList.push({
+          count: 1,
+          name,
+          users: [{ id: this.localPost.accessedId, name: this.localPost.accessedName }]
+        });
+      }
+
+      const addSucceeded = await this.fetchAddReaction(name, threadTs);
+      if (!addSucceeded) {
+        this.restoreReactionSnapshot(threadTs, snapshot);
       }
     },
     existsReaction(name, ts) {
@@ -1184,51 +1213,91 @@ export default {
         return message?.reactions;
       }
     },
+    getOrCreateReactionList(ts) {
+      if (this.localPost.ts === ts) {
+        return this.reactions;
+      }
+      const message = this.replies?.find((msg) => msg.ts === ts);
+      if (!message) {
+        return null;
+      }
+      if (!message.reactions) {
+        message.reactions = [];
+      }
+      return message.reactions;
+    },
+    cloneReactionEntries(entries = []) {
+      return entries.map(reaction => ({
+        ...reaction,
+        users: reaction.users ? reaction.users.map(user => ({ ...user })) : []
+      }));
+    },
+    // 楽観更新に失敗したときに元に戻せるよう、現在のリアクション状態を控える
+    createReactionSnapshot(ts) {
+      const list = this.existsReactionsList(ts);
+      return {
+        existed: !!list,
+        items: list ? this.cloneReactionEntries(list) : []
+      };
+    },
+    restoreReactionSnapshot(ts, snapshot) {
+      if (!snapshot) {
+        return;
+      }
+      const clonedItems = this.cloneReactionEntries(snapshot.items);
+      if (this.localPost.ts === ts) {
+        this.reactions = clonedItems;
+        return;
+      }
+      const message = this.replies?.find((msg) => msg.ts === ts);
+      if (!message) {
+        return;
+      }
+      if (snapshot.existed) {
+        message.reactions = clonedItems;
+      } else if (clonedItems.length === 0) {
+        delete message.reactions;
+      } else {
+        message.reactions = clonedItems;
+      }
+    },
     async fetchAddReaction(name, ts) {
       try {
-        // Flaskサーバーからprofileを取得
-        await fetch(`${API_BASE_URL}/api/v1/slack/reactions/insert?channelId=${this.localPost.channelId}&name=${name}&ts=${ts}`, {
+        const response = await fetch(`${API_BASE_URL}/api/v1/slack/reactions/insert?channelId=${this.localPost.channelId}&name=${name}&ts=${ts}`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${toRaw(this.accessToken)}`
           }
-        }).then(response => {
-          if (!response.ok) {
-            throw new Error('Network response was not ok');
-          }
-          return name;
-        }).catch(error => {
-          console.error('Error fetching data:', error);
-          return null;
         });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => '');
+          console.error(`Failed to add reaction ${name}: ${response.status} ${response.statusText} ${errorText}`);
+          return false;
+        }
+        return true;
       } catch (error) {
         console.error('Error fetching add reaction:', error);
-        return null;
+        return false;
       }
-      return name;
     },
     async fetchDeleteReaction(name, ts) {
       try {
-        // Flaskサーバーからprofileを取得
-        await fetch(`${API_BASE_URL}/api/v1/slack/reactions/delete?channelId=${this.localPost.channelId}&name=${name}&ts=${ts}`, {
+        const response = await fetch(`${API_BASE_URL}/api/v1/slack/reactions/delete?channelId=${this.localPost.channelId}&name=${name}&ts=${ts}`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${toRaw(this.accessToken)}`
           }
-        }).then(response => {
-          if (!response.ok) {
-            throw new Error('Network response was not ok');
-          }
-          return name;
-        }).catch(error => {
-          console.error('Error fetching data:', error);
-          return null;
         });
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => '');
+          console.error(`Failed to delete reaction ${name}: ${response.status} ${response.statusText} ${errorText}`);
+          return false;
+        }
+        return true;
       } catch (error) {
         console.error('Error fetching delete reaction:', error);
-        return null;
+        return false;
       }
-      return name;
     },
     async fetchAddReply() {
       try {
@@ -1274,19 +1343,24 @@ export default {
   margin: 0 0 1em 2em;
   padding: 0;
   list-style-type: disc;
+  font-size: inherit;
+  line-height: inherit;
 }
 
 :deep(.custom-ordered-list) {
   margin: 0 0 1em 2em;
   padding: 0;
   /*  list-style-type: decimal; */
+  font-size: inherit;
+  line-height: inherit;
 }
 
 :deep(.custom-italic) {
-  font-family: monospace;
+  /* 標準テキストと同じサイズ・フォントを維持しつつ斜体表現だけ付与する */
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
   font-style: italic;
-  transform: skew(-10deg);
-  /* フォントの傾斜を強制的に適用 */
   display: inline;
 }
 
@@ -1735,11 +1809,11 @@ export default {
 .reaction-item {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   background-color: rgba(223, 223, 223, 0.2);
-  padding: 4px 6px;
-  font-size: var(--font-size-caption);
-  border-radius: 7px;
+  padding: 2px 4px;
+  font-size: calc(var(--font-size-caption) * 0.9);
+  border-radius: 6px;
   box-shadow: 0 2px 3px #0003;
   /* 文字を選択できなくする */
   user-select: none;
