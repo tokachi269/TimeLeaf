@@ -42,7 +42,13 @@ def update_user_cache():
     if response.status_code == 200:
         res = response.json() 
         if response.json().get("ok"):
-            user_cache = res["members"]
+            # Slackから削除済み・ボットのメンバーを除外し、退職者が表示されないようにする
+            active_members = [
+                member
+                for member in res.get("members", [])
+                if not member.get("deleted") and not member.get("is_bot")
+            ]
+            user_cache = active_members
             last_user_update = time.time()
         else:
             print(res)
@@ -178,12 +184,27 @@ def auth_test(token):
     headers = {
         "Authorization": f"{token}",
     }
-    response = requests.get(url, headers=headers)
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+    except requests.RequestException as exc:
+        print(f"auth_test error: request failed {exc}")
+        return None
+
     if response.status_code == 200:
-        res = response.json() 
+        try:
+            res = response.json()
+        except ValueError:
+            print(f"auth_test error: invalid JSON body={response.text}")
+            return None
+
         if res.get("ok"):
             return res
-    return
+        print(res)
+        if res.get("error") == "not_authed":
+            return None
+    else:
+        print(f"auth_test error: Slack HTTP {response.status_code} body={response.text}")
+    return None
 
 @controller_bp.route('/v1/slack/messages', methods=['GET'])
 def get_slack_messages():
