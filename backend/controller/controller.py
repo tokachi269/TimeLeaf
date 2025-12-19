@@ -38,7 +38,11 @@ def update_user_cache():
     }
     global user_cache
     global last_user_update
-    response = requests.get(url, headers=headers)
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+    except requests.RequestException as exc:
+        print(f"update_user_cache error: request failed {exc}")
+        return
     if response.status_code == 200:
         res = response.json() 
         if response.json().get("ok"):
@@ -65,7 +69,11 @@ def update_reaction_cache():
     }
     global reaction_cache
     global last_user_update
-    response = requests.get(url, headers=headers)
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+    except requests.RequestException as exc:
+        print(f"update_reaction_cache error: request failed {exc}")
+        return
     if response.status_code == 200:
         res = response.json() 
         if response.json().get("ok"):
@@ -222,7 +230,11 @@ def get_slack_messages():
         "limit": 30,
         "sort": "timestamp"
     }
-    response = requests.get(url, headers=headers, params=params)
+    try:
+        response = requests.get(url, headers=headers, params=params, timeout=10)
+    except requests.RequestException as exc:
+        print(f"get_slack_messages error: request failed {exc}, query={query}, cursor={cursor}")
+        return jsonify({"error": "Failed to fetch messages"}), 502
     if response.status_code == 200:
         res = response.json()
         if res.get("ok"):
@@ -280,7 +292,11 @@ def get_slack_message_replies():
         "ts": ts,
     }
 
-    response = requests.get(url, headers=headers, params=params)
+    try:
+        response = requests.get(url, headers=headers, params=params, timeout=10)
+    except requests.RequestException as exc:
+        print(f"get_slack_message_replies error: request failed {exc}, channel={channel}, ts={ts}")
+        return jsonify({"error": "Failed to fetch messages"}), 502
     if response.status_code == 200:
         res = response.json()
         if res.get("ok"):
@@ -358,7 +374,11 @@ def get_slack_times_channels():
         "limit": 500,
         "types":"public_channel"
     }
-    response = requests.get(url, headers=headers, params=params)
+    try:
+        response = requests.get(url, headers=headers, params=params, timeout=10)
+    except requests.RequestException as exc:
+        print(f"get_slack_times_channels error: request failed {exc}")
+        return jsonify({"error": "Failed to fetch timesChannels"}), 502
     if response.status_code == 200:
         res = response.json() 
         if response.json().get("ok"):
@@ -409,7 +429,11 @@ def get_slack_users_profile():
     params = {
         "user": user
     }
-    response = requests.get(url, headers=headers, params=params)
+    try:
+        response = requests.get(url, headers=headers, params=params, timeout=10)
+    except requests.RequestException as exc:
+        print(f"get_slack_users_profile error: request failed {exc}, user={user}")
+        return jsonify({"error": "Failed to fetch profile"}), 502
     if response.status_code == 200:
         res = response.json() 
         if response.json().get("ok"):
@@ -437,7 +461,11 @@ def get_slack_reactions_insert():
         "name": name,
         "timestamp": ts,
     }
-    response = requests.post(url, headers=headers, params=params)
+    try:
+        response = requests.post(url, headers=headers, params=params, timeout=10)
+    except requests.RequestException as exc:
+        print(f"get_slack_reactions_insert error: request failed {exc}, channelId={channelId}, name={name}")
+        return jsonify({"error": "Failed to set reaction"}), 502
     if response.status_code == 200:
         res = response.json() 
         if response.json().get("ok"):
@@ -463,7 +491,11 @@ def get_slack_reactions_delete():
         "name": name,
         "timestamp": ts,
     }
-    response = requests.post(url, headers=headers, params=params)
+    try:
+        response = requests.post(url, headers=headers, params=params, timeout=10)
+    except requests.RequestException as exc:
+        print(f"get_slack_reactions_delete error: request failed {exc}, channelId={channelId}, name={name}")
+        return jsonify({"error": "Failed to delete reaction"}), 502
     if response.status_code == 200:
         res = response.json() 
         if response.json().get("ok"):
@@ -489,7 +521,11 @@ def get_slack_messages_reply():
         "text": text,
         "thread_ts": thread_ts,
     }
-    response = requests.post(url, headers=headers, params=params)
+    try:
+        response = requests.post(url, headers=headers, params=params, timeout=10)
+    except requests.RequestException as exc:
+        print(f"get_slack_messages_reply error: request failed {exc}, channelId={channelId}")
+        return jsonify({"error": "Failed to set reaction"}), 502
     if response.status_code == 200:
         res = response.json() 
         if response.json().get("ok"):
