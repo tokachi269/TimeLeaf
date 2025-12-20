@@ -31,6 +31,37 @@ reaction_cache = []
 last_reaction_update = 0
 REACTION_CACHE_DURATION = 1800  # 30分（秒単位）
 
+# 画面初期ロードを軽くするための短TTLキャッシュ（プロセス内）
+times_channels_cache = {}
+TIMES_CHANNELS_CACHE_DURATION = 300  # 5分
+
+messages_cache = {}
+MESSAGES_CACHE_DURATION = 30  # 30秒
+
+replies_cache = {}
+REPLIES_CACHE_DURATION = 60  # 60秒
+
+
+def _cached_response(payload, max_age_seconds):
+    res = jsonify(payload)
+    res.headers['Cache-Control'] = f'private, max-age={max_age_seconds}'
+    return res
+
+
+def _cache_get(cache, key, max_age_seconds):
+    entry = cache.get(key)
+    if not entry:
+        return None
+    ts, payload = entry
+    if time.time() - ts > max_age_seconds:
+        cache.pop(key, None)
+        return None
+    return payload
+
+
+def _cache_set(cache, key, payload):
+    cache[key] = (time.time(), payload)
+
 def update_user_cache():
     url = "https://slack.com/api/users.list"
     headers = {
@@ -220,6 +251,11 @@ def get_slack_messages():
     cursor = request.args.get("cursor")
     query = request.args.get("query")
 
+    cache_key = (token, query, cursor)
+    cached = _cache_get(messages_cache, cache_key, MESSAGES_CACHE_DURATION)
+    if cached is not None:
+        return _cached_response(cached, MESSAGES_CACHE_DURATION), 200
+
     url = "https://slack.com/api/search.messages"
     headers = {
         "Authorization": f"{token}",
@@ -227,7 +263,7 @@ def get_slack_messages():
     params = {
         "query": query,
         "cursor": cursor,
-        "limit": 30,
+        "limit": 20,
         "sort": "timestamp"
     }
     try:
@@ -265,7 +301,8 @@ def get_slack_messages():
 
             # messages_data に上書きして返す
             messages_data["matches"] = matches
-            return jsonify(messages_data), 200
+            _cache_set(messages_cache, cache_key, messages_data)
+            return _cached_response(messages_data, MESSAGES_CACHE_DURATION), 200
         else:
             return jsonify(res), 400
     else:
@@ -282,6 +319,11 @@ def get_slack_message_replies():
     # キャッシュが古い場合は更新
     if time.time() - last_user_update > USER_CACHE_DURATION:
         update_user_cache()
+
+    cache_key = (token, channel, ts)
+    cached = _cache_get(replies_cache, cache_key, REPLIES_CACHE_DURATION)
+    if cached is not None:
+        return _cached_response(cached, REPLIES_CACHE_DURATION), 200
 
     url = "https://slack.com/api/conversations.replies"
     headers = {
@@ -356,7 +398,8 @@ def get_slack_message_replies():
                         reaction["users"] = updated_users
 
             # メッセージを返す
-            return jsonify(messages), 200
+            _cache_set(replies_cache, cache_key, messages)
+            return _cached_response(messages, REPLIES_CACHE_DURATION), 200
         else:
             return jsonify(res), 400
     else:
@@ -365,6 +408,10 @@ def get_slack_message_replies():
 @controller_bp.route('/v1/slack/timesChannels', methods=['GET'])
 def get_slack_times_channels():
     token = request.headers.get('authorization')
+
+    cached = _cache_get(times_channels_cache, token, TIMES_CHANNELS_CACHE_DURATION)
+    if cached is not None:
+        return _cached_response(cached, TIMES_CHANNELS_CACHE_DURATION), 200
     
     url = "https://slack.com/api/conversations.list"
     headers = {
@@ -392,7 +439,9 @@ def get_slack_times_channels():
                 for channel in timesChannels
                 if channel.get('is_member')
             ]
-            return jsonify({"channels":timesChannels,"followed_channels":timesFollowed})
+            payload = {"channels": timesChannels, "followed_channels": timesFollowed}
+            _cache_set(times_channels_cache, token, payload)
+            return _cached_response(payload, TIMES_CHANNELS_CACHE_DURATION)
         else:
             return jsonify(res)
     else:

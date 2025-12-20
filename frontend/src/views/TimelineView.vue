@@ -13,8 +13,12 @@
         @blur="resetPickerPosition" />
     </div>
     <!-- タイムラインカード -->
-    <TimelineCard v-for="post in posts" :key="post.id" :post="post" :accessToken="accessToken" :emojiMap="emojiMap"
-      @open-picker="handleOpenPicker" @add-reaction="handleOpenPicker" ref="timelineCards" />
+    <div class="timeline-list">
+      <div v-for="post in displayedPosts" :key="post.id" class="timeline-row">
+        <TimelineCard ref="timelineCards" :post="post" :accessToken="accessToken" :emojiMap="emojiMap"
+          :unicodeEmojis="unicodeEmojis" @open-picker="handleOpenPicker" @add-reaction="handleOpenPicker" />
+      </div>
+    </div>
     <!-- フォロー中のチャンネルがない場合のメッセージ -->
     <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
 
@@ -31,7 +35,6 @@
 
 <script>
 import TimelineCard from '@/components/TimelineCard.vue';
-import unicodeEmojis from '@/assets/emoji.json'; //https://raw.githubusercontent.com/iamcal/emoji-data/master/emoji.json
 import { API_BASE_URL } from '@/config.js';
 import "emoji-mart-vue-fast/css/emoji-mart.css";
 import { Picker, EmojiIndex } from "emoji-mart-vue-fast/src";
@@ -51,6 +54,14 @@ export default {
     accessedId: {
       type: String,
       required: true
+    },
+    emojiMap: {
+      type: Array,
+      default: () => []
+    },
+    unicodeEmojis: {
+      type: Array,
+      default: () => []
     }
   },
   data() {
@@ -61,7 +72,6 @@ export default {
       page: 1, // ページ番号
       loading: false,
       nextCursor: null,
-      emojiMap: [],
       errorMessage: '', // エラーメッセージを格納する変数
       showEmojiPicker: false,
       selectedTs: null,
@@ -77,18 +87,15 @@ export default {
       recentEmojis: ["shochi", "arigatougozaimasu", "yoroshikuonegaishimasu", "参加", "otsu", "すごい", "お大事に", "sumi", "さすが", "お疲れ様でした", "munen", "素敵", "yoros", "わくわく", "pikachu", "iine", "異議なし", "おめでとうございます"],//, "おつかれさま", "了解です"
       fetchCount: 0,
       showScrollToTop: false // スクロールの一番上に移動するボタンの表示を管理
-
     }
-  },
-  provide() {
-    return {
-      unicodeEmojis: unicodeEmojis,
-    };
   },
   computed: {
     computedEmojiMap() {
       return this.emojiMap || [];
     },
+    displayedPosts() {
+      return this.posts.filter(this.shouldDisplayPost);
+    }
   },
   watch: {
     showEmojiPicker(newVal) {
@@ -101,6 +108,12 @@ export default {
         window.removeEventListener("touchstart", this.closeEmojiPickerOnTapOrClick);
         window.removeEventListener("click", this.closeEmojiPickerOnTapOrClick);
       }
+    },
+    emojiMap: {
+      handler() {
+        this.rebuildEmojiIndex();
+      },
+      immediate: true
     }
   },
   async mounted() {
@@ -108,12 +121,9 @@ export default {
     // デスクトップでのみスクロール検知
     window.addEventListener("scroll", this.onScroll); // スクロール検知
 
-    window.addEventListener("resize", this.checkHeight); // imageGalleryのサイズ変更(画像が呼び込まれた)検知
-
     // タップイベントリスナー (スマホ)
   },
   beforeUnmount() {
-    window.removeEventListener("resize", this.checkHeight);
     window.removeEventListener("scroll", this.onScroll);
 
     // タップイベントリスナー (スマホ)
@@ -126,45 +136,36 @@ export default {
     isMobile() {
       return /Mobi|Android/i.test(navigator.userAgent);
     },
+    rebuildEmojiIndex() {
+      this.emojiIndex = new EmojiIndex(data, {
+        custom: this.computedEmojiMap,
+        recent: this.recentEmojis
+      });
+    },
     async init() {
       console.log("TimelineCard called");
       this.isFollowing = this.getCookie('isFollowing')?.toLowerCase() === "true";
 
       // FlaskサーバーからSlackメッセージを取得
       try {
-        // fetchを同時並行で実行
-        const [channelsResponse, emojisResponse] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/v1/slack/timesChannels`, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${this.accessToken}`
-            }
-          }),
-          fetch(`${API_BASE_URL}/api/v2/slack/emojis`, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${this.accessToken}`
-            }
-          })
-        ]);
+        const channelsResponse = await fetch(`${API_BASE_URL}/api/v1/slack/timesChannels`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${this.accessToken}`
+          }
+        });
 
-        if (!channelsResponse.ok || !emojisResponse.ok) {
+        if (!channelsResponse.ok) {
           throw new Error('Network response was not ok');
         }
 
         // チャンネル一覧が取得できるまで待機
         this.channels = await channelsResponse.json();
 
-        // 絵文字が取得できるまで待機
-        this.emojiMap = await emojisResponse.json();
-
         console.log("Channels:", this.channels);
-        console.log("Emojis:", this.emojiMap);
       } catch (error) {
         console.error('Error fetching data:', error);
       }
-      //console.log("emojiMap:", this.emojiMap);
-      this.emojiIndex = new EmojiIndex(data, { custom: this.emojiMap, recent: this.recentEmojis });
       // フォロー中のチャンネルがない場合
 
       this.fetchPosts();
@@ -236,6 +237,8 @@ export default {
                 isFollowed = true;
               }
 
+              const threadTs = msg.thread_ts || msg.ts;
+
               // チャンネルの創設者と と メッセージのuserIDが一致するかをチェック
               const channel = this.channels.followed_channels.find(channel => channel.id === msg.channel.id);
               const isMaster = channel ? channel.creator === msg.user : false;
@@ -252,8 +255,10 @@ export default {
                 channelId: msg.channel.id,
                 channelName: "#" + msg.channel.name,
                 channelUrl: msg.permalink,
+                subtype: msg.subtype,
                 isMaster: isMaster,
                 isFollowed: isFollowed,
+                threadTs: threadTs,
                 content: formattedContent,  // メッセージ内容 (画像に変換済み)
                 attachments: msg.attachments,
                 files: msg.files,
@@ -279,14 +284,11 @@ export default {
     },
     checkAndLoadPosts() {
       setTimeout(() => {
-        const timelineCards = this.$refs.timelineCards;
-        let cardCount = 0;
-        if (timelineCards) {
-          timelineCards.forEach(card => {
-            cardCount += card.$el.querySelectorAll('.card').length;
-          });
+        if (this.loading) {
+          return;
         }
-        if (cardCount <= 3) {
+        const minimumVisible = 6;
+        if (this.displayedPosts.length <= minimumVisible) {
           this.loadPosts();
         }
       }, 2000);
@@ -332,6 +334,12 @@ export default {
 
       requestAnimationFrame(scroll);
     },
+    shouldDisplayPost(post) {
+      if (!post) {
+        return false;
+      }
+      return !(post.threadTs && post.threadTs !== post.ts && post.subtype !== "thread_broadcast");
+    },
     onScroll() {
       // ユーザーポップアップが表示されている場合は閉じる
       this.isScrolling = true;
@@ -373,7 +381,7 @@ export default {
       //スクロールしたら自動ロード
       //よくわからないけど動いてるからOK
       console.log("initIntersectionObserver called")
-      const options = { root: null, rootMargin: '1200px', threshold: 1.0 }
+      const options = { root: null, rootMargin: '600px', threshold: 0.6 }
       this.observer = new IntersectionObserver(entries => {
         if (entries[0].isIntersecting && !this.loading) {
           this.loadPosts();
@@ -416,8 +424,9 @@ export default {
       this.showEmojiPicker = false;
       console.log(this.selectedTs);
       // カードのコンポーネントを取得して絵文字を送信
-      const card = this.$refs.timelineCards.find(card => card.localPost.ts === this.selectedTs);
-      card.handleEmojiSelected(emoji, this.selectedTs, this.selectedThreadTs);
+      const cardRefs = this.getTimelineCardRefs();
+      const card = cardRefs.find(card => card.localPost.ts === this.selectedTs);
+      card?.handleEmojiSelected(emoji, this.selectedTs, this.selectedThreadTs);
     },
     handleOpenPicker(ts, threadTs, event) {
       this.selectedTs = ts;
@@ -477,6 +486,13 @@ export default {
     },
     preventContextMenu(event) {
       event.preventDefault();
+    },
+    getTimelineCardRefs() {
+      const refs = this.$refs.timelineCards;
+      if (!refs) {
+        return [];
+      }
+      return Array.isArray(refs) ? refs : [refs];
     },
   },
 }
@@ -541,6 +557,15 @@ export default {
 .timeline {
   max-width: 600px;
   margin: auto;
+}
+
+.timeline-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.timeline-row {
+  width: 100%;
 }
 
 .loading-trigger {

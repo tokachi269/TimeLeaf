@@ -15,7 +15,8 @@
     <ChangelogModal :is-visible="showChangelogModal" :is-new-version="isNewVersion" :changelog="changelog" :expanded-versions="expandedVersions"
       @close="closeChangelogModal" />
 
-    <TimelineView v-if="!invalidToken" :accessToken="accessToken" :accessedId="id" :accessedName="name" />
+    <TimelineView v-if="!invalidToken" :accessToken="accessToken" :accessedId="id" :accessedName="name"
+      :emoji-map="customEmojiMap" :unicode-emojis="unicodeEmojiData" />
     <br>
     <br>
     <!-- フォロー中のチャンネルがない場合のメッセージ -->
@@ -65,7 +66,10 @@ export default {
       logoWidth: 350,  // ロゴの現在の幅
       maxLogoWidth: 350,  // ロゴの最大幅
       minLogoWidth: 100,  // ロゴの最小幅
-      logoTop: 10  // ロゴの上からの位置
+      logoTop: 10,  // ロゴの上からの位置
+      customEmojiMap: [],
+      unicodeEmojiData: [],
+      emojiResourcesPromise: null
     }
   },
   setup(props, { emit }) {
@@ -125,6 +129,24 @@ export default {
       this.id = this.getCookie('id');
       this.name = this.getCookie('name');
       this.scope = this.getCookie('scope');
+      this.team = this.getCookie('team') || this.team;
+
+      // token が既にある & code がない場合は、初期表示を優先してブロッキングしない
+      if (this.accessToken && this.code == "") {
+        this.invalidToken = false;
+        if (!this.versionChecked) {
+          this.checkVersion();
+          this.versionChecked = true;
+        }
+
+        // team 表示のため、必要ならバックグラウンドで取得
+        if (!this.team) {
+          this.fetchAccessToken();
+        }
+        this.ensureEmojiResources();
+        return;
+      }
+
       await this.fetchAccessToken();
     },
     async fetchAccessToken() {
@@ -152,6 +174,9 @@ export default {
               this.team = data.team;
               // トークンを保存
               document.cookie = `token=${this.accessToken}; expires=${new Date().setMonth(new Date().getMonth() + 1)}; path=/; SameSite=None; Secure`;
+                if (data.team) {
+                  document.cookie = `team=${data.team}; expires=${new Date().setMonth(new Date().getMonth() + 1)}; path=/; SameSite=None; Secure`;
+                }
               if (data.scope) {
                 document.cookie = `scope=${data.scope}; expires=${new Date().setMonth(new Date().getMonth() + 1)}; path=/; SameSite=None; Secure`;
               }
@@ -166,6 +191,7 @@ export default {
                 this.checkVersion();
                 this.versionChecked = true;
               }
+              this.ensureEmojiResources();
               this.removeUrlParams(); // パスパラメーターを削除
             }
             return
@@ -348,6 +374,55 @@ export default {
      */
     reloadPage() {
       window.location.reload();
+    },
+    async ensureEmojiResources() {
+      if (this.emojiResourcesPromise || !this.accessToken) {
+        if (this.emojiResourcesPromise) {
+          return this.emojiResourcesPromise;
+        }
+      }
+      if (this.unicodeEmojiData.length && this.customEmojiMap.length) {
+        return;
+      }
+      this.emojiResourcesPromise = (async () => {
+        try {
+          const [unicodeData, customEmojis] = await Promise.all([
+            this.loadUnicodeEmojiData(),
+            this.fetchCustomEmojis()
+          ]);
+          this.unicodeEmojiData = unicodeData || [];
+          this.customEmojiMap = customEmojis || [];
+        } catch (error) {
+          console.error('Failed to load emoji resources:', error);
+        } finally {
+          this.emojiResourcesPromise = null;
+        }
+      })();
+      return this.emojiResourcesPromise;
+    },
+    async loadUnicodeEmojiData() {
+      if (this.unicodeEmojiData.length) {
+        return this.unicodeEmojiData;
+      }
+      const module = await import('@/assets/emoji.json');
+      return module.default || module;
+    },
+    async fetchCustomEmojis() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/v2/slack/emojis`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${this.accessToken}`
+          }
+        });
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        return await response.json();
+      } catch (error) {
+        console.error('Error fetching custom emojis:', error);
+        return [];
+      }
     }
   }
 }

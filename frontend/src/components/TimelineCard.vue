@@ -127,7 +127,7 @@
                       <div class="content-wrapper">
                         <div class="thread-empty-space"></div>
                         <div class="content-area">
-                          <div class="content" v-html="reply.compiledText"></div>
+                          <div class="content" v-html="getReplyCompiledText(reply)"></div>
                           <!-- URLのサムネイル -->
                           <div v-if="extractThumbnail(reply)" class="url-preview-container"
                             v-html="extractThumbnail(reply)">
@@ -223,14 +223,66 @@
 </template>
 
 <script>
-import { toRaw } from 'vue';
-import { nextTick } from 'vue';
+import { toRaw, nextTick } from 'vue';
 import { API_BASE_URL } from '@/config.js';
 import emitter from '@/eventBus';
 import { marked } from 'marked';
-import hljs from 'highlight.js';
 import 'highlight.js/styles/default.css';
 import VueEasyLightbox from 'vue-easy-lightbox';
+
+const repliesResultCache = new Map();
+const repliesFetchPromises = new Map();
+const buildRepliesCacheKey = (channelId, threadTs) => `${channelId}-${threadTs}`;
+const cloneRepliesPayload = (payload) => (payload ? JSON.parse(JSON.stringify(payload)) : null);
+
+const SUPPORTED_HLJS_LANGUAGES = [
+  { name: 'javascript', loader: () => import('highlight.js/lib/languages/javascript') },
+  { name: 'typescript', loader: () => import('highlight.js/lib/languages/typescript') },
+  { name: 'python', loader: () => import('highlight.js/lib/languages/python') },
+  { name: 'bash', loader: () => import('highlight.js/lib/languages/bash') },
+  { name: 'json', loader: () => import('highlight.js/lib/languages/json') },
+  { name: 'html', loader: () => import('highlight.js/lib/languages/xml') },
+  { name: 'css', loader: () => import('highlight.js/lib/languages/css') },
+  { name: 'java', loader: () => import('highlight.js/lib/languages/java') }
+];
+
+let highlightEnginePromise = null;
+const loadHighlightEngine = async () => {
+  if (highlightEnginePromise) {
+    return highlightEnginePromise;
+  }
+
+  highlightEnginePromise = (async () => {
+    try {
+      const [{ default: core }, ...languageModules] = await Promise.all([
+        import('highlight.js/lib/core'),
+        ...SUPPORTED_HLJS_LANGUAGES.map((lang) => lang.loader()),
+      ]);
+
+      SUPPORTED_HLJS_LANGUAGES.forEach((lang, index) => {
+        const module = languageModules[index];
+        const definition = module?.default || module;
+        if (definition) {
+          core.registerLanguage(lang.name, definition);
+        }
+      });
+
+      return core;
+    } catch (error) {
+      console.error('Failed to initialize highlight.js:', error);
+      return null;
+    }
+  })();
+
+  const engine = await highlightEnginePromise;
+  if (!engine) {
+    highlightEnginePromise = null;
+  }
+  return engine;
+};
+
+const userProfileCache = new Map();
+const userProfileFetchPromises = new Map();
 
 export default {
   components: {
@@ -246,13 +298,18 @@ export default {
       required: true // 親からトークンを受け取る
     },
     emojiMap: {
-      type: Object,
-      required: true // 親から絵文字Mapを受け取る
+      type: Array,
+      default: () => [] // 親から絵文字Mapを受け取る
+    },
+    unicodeEmojis: {
+      type: Array,
+      default: () => []
     }
   },
   data() {
     return {
       localPost: toRaw(this.post), // propsの値をdataにコピーして保持
+      threadRootTs: this.post.threadTs || this.post.ts,
       replies: [],
       imgsAndVids: [],
       urls: [],
@@ -291,17 +348,16 @@ export default {
       followInfoTimer: null,
       followBadgeTouchStartPos: null, // タップ移動量の判定用座標
       followBadgeTouchMoved: false,
+      highlighter: null,
     };
-  },
-  inject: {
-    unicodeEmojis: { default: [] },
   },
   created() {
     // 親コンポーネントから絵文字を受け取るイベントをリスン
     emitter.on('emoji-selected', this.handleEmojiSelected);
   },
   async mounted() {
-    this.profile = this.fetchUserProfile();
+    this.prepareHighlighter();
+    this.fetchUserProfile();
     // 画像ファイルの URL を取得
     if (this.post.files) {
       for (const file of this.post.files) {
@@ -346,39 +402,6 @@ export default {
       }
     });
     await this.fetchReplies();
-    //スレッド投稿の場合は表示しないが、スレッドブロードキャストの場合は表示する
-    //thread_ts がある、親投稿じゃない、スレッドブロードキャストじゃないときにスレッド内の投稿と判断
-    this.message = this.replies?.find((msg) => msg.ts === this.localPost.ts);
-    this.canDisplayPost = !this.message ? false : !(this.message && this.message.thread_ts && this.message.thread_ts != this.message.ts && this.message?.subtype !== "thread_broadcast");
-
-    if (this.message && this.message.thread_ts && this.message.thread_ts == this.message.ts) {
-      // console.log(this.message);
-      // console.log(this.replies);
-    }
-
-    // 画像ファイルの URL を取得
-    if (this.replies) {
-      const updatedReplies = await Promise.all(
-        this.replies.map(async (reply, index) => {
-          if (index > 0 && reply && reply.files) {
-            const updatedFiles = await Promise.all(
-              reply.files.map(async (file) => {
-                return await this.fetchImageSrc(file, true);
-              })
-            );
-            return { ...reply, files: updatedFiles };
-          }
-          return reply;
-        })
-      );
-      this.replies = updatedReplies;
-      this.replies.forEach(reply => {
-        if (reply.subtype === "thread_broadcast") {
-          console.log(reply);
-        }
-      });
-      this.imageLoaded = true;
-    }
 
 
     //this.thumbnailHtml = this.extractThumbnail();
@@ -576,9 +599,28 @@ export default {
 
       // カスタムレンダラーを設定
       const renderer = new marked.Renderer();
+      const highlightEngine = this.highlighter;
       renderer.code = (code, lang) => {
-        const highlighted = lang ? hljs.highlight(code.text, { language: lang }).value : hljs.highlightAuto(code.text).value;
-        const languageClass = lang ? `hljs ${lang}` : 'hljs';
+        const codeText = typeof code === 'string' ? code : (code?.text || '');
+        const language = lang ? lang.toLowerCase() : null;
+        let highlighted = codeText
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+        let languageClass = language ? `hljs ${language}` : 'hljs';
+
+        if (highlightEngine) {
+          try {
+            highlighted = language
+              ? highlightEngine.highlight(codeText, { language }).value
+              : highlightEngine.highlightAuto(codeText).value;
+          } catch (error) {
+            console.warn('Highlight fallback applied:', error);
+          }
+        }
+
         return `<pre class="pres"><code class="hljs2 ${languageClass}">${highlighted}</code></pre>`;
       };
 
@@ -599,6 +641,15 @@ export default {
       // };
       // markdownText = unescapeHtml(markdownText);
       return markdownText;
+    },
+    getReplyCompiledText(reply) {
+      if (!reply) {
+        return '';
+      }
+      if (!reply.compiledText) {
+        reply.compiledText = this.compiledMarkdown(reply);
+      }
+      return reply.compiledText;
     },
 
     formattingContext(context, unicode) {
@@ -695,28 +746,66 @@ export default {
       this.isUserListVisible = false;
     },
     async fetchUserProfile() {
+      const userId = this.localPost.userId;
+      if (!userId) {
+        return;
+      }
+
+      const cachedProfile = userProfileCache.get(userId);
+      if (cachedProfile) {
+        this.applyUserProfile(cachedProfile);
+        return;
+      }
+
+      if (!userProfileFetchPromises.has(userId)) {
+        userProfileFetchPromises.set(userId, this.requestUserProfile(userId));
+      }
+
       try {
-        // Flaskサーバーからprofileを取得
-        const profile = await fetch(`${API_BASE_URL}/api/v1/slack/users/profile?user=${this.localPost.userId}`, {
+        const profile = await userProfileFetchPromises.get(userId);
+        if (profile) {
+          userProfileCache.set(userId, profile);
+          this.applyUserProfile(profile);
+        }
+      } catch (error) {
+        console.error('Error fetching user profile:', error);
+      } finally {
+        userProfileFetchPromises.delete(userId);
+      }
+    },
+    async requestUserProfile(userId) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/v1/slack/users/profile?user=${userId}`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${toRaw(this.accessToken)}`
           }
-        }).then(response => {
-          if (!response.ok) {
-            throw new Error('Network response was not ok');
-          }
-          return response.json();
-        }).catch(error => {
-          console.error('Error fetching data:', error);
         });
-        // console.log("profile:", profile);
-        this.userName = profile.display_name;
-        this.userNameEn = profile.real_name;
-        this.userImage = profile.image_192;
-
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        return await response.json();
       } catch (error) {
-        console.error('Error fetching user profile:', error);
+        console.error('Error fetching data:', error);
+        return null;
+      }
+    },
+    applyUserProfile(profile) {
+      if (!profile) {
+        return;
+      }
+      this.userName = profile.display_name || this.userName;
+      this.userNameEn = profile.real_name || this.userNameEn;
+      this.userImage = profile.image_192 || this.userImage;
+    },
+    async prepareHighlighter() {
+      if (this.highlighter) {
+        return;
+      }
+      const engine = await loadHighlightEngine();
+      if (engine) {
+        this.highlighter = engine;
+        this.$forceUpdate(); // 再描画してハイライト済みマークダウンを適用
       }
     },
 
@@ -1038,40 +1127,88 @@ export default {
       }
     },
     async fetchReplies() {
+      const threadRootTs = this.threadRootTs || this.localPost.ts;
+      const cacheKey = buildRepliesCacheKey(this.localPost.channelId, threadRootTs);
+
+      const cachedPayload = repliesResultCache.get(cacheKey);
+      if (cachedPayload) {
+        await this.applyRepliesPayload(cachedPayload);
+        return;
+      }
+
+      if (!repliesFetchPromises.has(cacheKey)) {
+        repliesFetchPromises.set(cacheKey, this.fetchRepliesPayload(threadRootTs));
+      }
+
       try {
-        // Flaskサーバーから返信メッセージを取得、リアクションもここで取得
-        const response = await fetch(`${API_BASE_URL}/api/v1/slack/messages/replies?channel=${this.localPost.channelId}&ts=${this.localPost.ts}`, {
+        const payload = await repliesFetchPromises.get(cacheKey);
+        if (payload) {
+          repliesResultCache.set(cacheKey, payload);
+        }
+        await this.applyRepliesPayload(payload);
+      } catch (error) {
+        this.replies = null;
+        this.reactions = [];
+        console.error('Error fetching data:', error);
+      } finally {
+        repliesFetchPromises.delete(cacheKey);
+      }
+    },
+    async fetchRepliesPayload(threadTs) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/v1/slack/messages/replies?channel=${this.localPost.channelId}&ts=${threadTs}`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${toRaw(this.accessToken)}`
           }
-        }).then(response => {
-          if (!response.ok) {
-            throw new Error('Network response was not ok');
-          }
-          return response.json();
-        }).catch(error => {
-          this.replies = null;
-          console.error('Error fetching data:', error);
-          return;
         });
-        this.replies = [];
-        await toRaw(response)?.forEach((reply, index) => {
-          if (index > 0) {
-            this.replies.push({
-              ...reply,
-              compiledText: this.compiledMarkdown(reply)
-            });
-          } else {
-            this.replies.push(reply);
-          }
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        const rawReplies = await response.json();
+        const replies = [];
+        await toRaw(rawReplies)?.forEach((reply) => {
+          replies.push(reply);
         });
-        const message = this.replies?.find((msg) => msg.ts === this.localPost.ts);
-        this.reactions = message?.reactions ?? [];
+        return await this.populateReplyFiles(replies);
       } catch (error) {
-        this.replies = null;
-        console.error('Error fetching user profile:', error);
+        console.error('Error fetching data:', error);
+        return null;
       }
+    },
+    async populateReplyFiles(replies) {
+      if (!replies) {
+        return null;
+      }
+      const updatedReplies = await Promise.all(
+        replies.map(async (reply, index) => {
+          if (index > 0 && reply && reply.files) {
+            const updatedFiles = await Promise.all(
+              reply.files.map(async (file) => await this.fetchImageSrc(file, true))
+            );
+            return { ...reply, files: updatedFiles };
+          }
+          return reply;
+        })
+      );
+      return updatedReplies;
+    },
+    async applyRepliesPayload(payload) {
+      if (!payload) {
+        this.replies = null;
+        this.reactions = [];
+        this.canDisplayPost = false;
+        return;
+      }
+      const localCopy = cloneRepliesPayload(payload);
+      this.replies = localCopy;
+      this.resolveMessageMetadata();
+    },
+    resolveMessageMetadata() {
+      this.message = this.replies?.find((msg) => msg.ts === this.localPost.ts);
+      this.canDisplayPost = !!this.message && !(this.message.thread_ts && this.message.thread_ts != this.message.ts && this.message?.subtype !== "thread_broadcast");
+      this.reactions = this.message?.reactions ?? [];
+      this.imageLoaded = true;
     },
     getEmojiForReaction(reactionName) {
       if (!reactionName) return
